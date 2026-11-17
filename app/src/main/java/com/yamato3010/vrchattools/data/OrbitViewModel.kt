@@ -1,6 +1,7 @@
 package com.yamato3010.vrchattools.data
 
 import android.app.Application
+import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -35,7 +36,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     var loginOpen by mutableStateOf(false); private set
     var lastSync by mutableStateOf<Long?>(null); private set
     var themeMode by mutableIntStateOf(prefs.getInt("theme", 0)); private set
-    var dynamicColor by mutableStateOf(prefs.getBoolean("dynamic", false)); private set
+    var dynamicColor by mutableStateOf(prefs.getBoolean("dynamic", Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)); private set
     var worldLoading by mutableStateOf(false); private set
     var worldQuery by mutableStateOf(""); private set
     private var accountId = "demo"

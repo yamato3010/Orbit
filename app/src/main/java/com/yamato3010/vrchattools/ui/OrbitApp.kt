@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.style.TextOverflow
@@ -333,9 +334,24 @@ private fun SettingsScreen(model: OrbitViewModel) {
                             SegmentedButton(selected = model.themeMode == index, onClick = { model.setTheme(index) }, shape = SegmentedButtonDefaults.itemShape(index, 3)) { Text(title, style = MaterialTheme.typography.labelMedium) }
                         }
                     }
-                    if (android.os.Build.VERSION.SDK_INT >= 31) Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) { Text("壁紙の色を使う", style = MaterialTheme.typography.titleSmall); Text("Androidのダイナミックカラー", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        Switch(model.dynamicColor, model::setDynamic)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("壁紙の色を使う", style = MaterialTheme.typography.titleSmall)
+                            Text(if (android.os.Build.VERSION.SDK_INT >= 31) "Material You · 壁紙に合わせた配色" else "Material YouはAndroid 12以降で利用できます", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = model.dynamicColor, onCheckedChange = model::setDynamic,
+                            enabled = android.os.Build.VERSION.SDK_INT >= 31, modifier = Modifier.testTag("dynamic_color_switch"))
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Text("現在の配色", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        val colors = MaterialTheme.colorScheme
+                        listOf("メイン" to colors.primary, "サブ" to colors.secondary, "アクセント" to colors.tertiary).forEach { (label, color) ->
+                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Box(Modifier.fillMaxWidth().height(30.dp).background(color, RoundedCornerShape(12.dp)))
+                                Text(label, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                            }
+                        }
                     }
                 }
             }
