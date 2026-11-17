@@ -41,6 +41,15 @@ ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest
 
 実アカウントによるログイン・2段階認証・API通信は別途確認が必要です。API仕様はコミュニティによるリバースエンジニアリングに基づいており、変更される可能性があります。
 
+## 今回の検証結果
+
+- Debug APKのビルド成功
+- フレンド検索・状態判定のユニットテスト5件成功（テンプレートのテストを含めると6件）
+- Android Lint：エラー0件。依存関係の更新案・KTXの利用案などの警告は残っています。
+- Android 17エミュレーターでホームの実表示を確認し、上のスクリーンショットを撮影
+- UIテストは検索欄と結果を区別するセレクターへ修正済みですが、最終再実行時にエミュレーターのpackage / activityサービスが再起動し、APKの再インストールに失敗したため完了できていません。
+- 実アカウントのログイン・2段階認証・API応答は未検証
+
 ## デザインと実装の参考
 
 - [Material 3 Expressive](https://m3.material.io/blog/building-with-m3-expressive)：形、色、タイポグラフィ、モーション
