@@ -9,14 +9,14 @@ object DemoData {
         World("demo-world-5", "Blue Hour", "aoi", 8, 24, description = "夜が始まる、その少し前。波の音と青い空に包まれる海辺。", palette = 4)
     )
     val friends = listOf(
-        Friend("demo-1", "こはる", Presence.JoinMe, "demo-world-1:123", "雲の上の喫茶店", bio = "まったりお話ししよ〜", platform = "PC"),
-        Friend("demo-2", "mikan", Presence.Online, "demo-world-1:456~hidden(usr_demo)~region(jp)", "雲の上の喫茶店", bio = "今日もどこかで。"),
-        Friend("demo-3", "しろ", Presence.JoinMe, "demo-world-3:789", "こもれびの庭", bio = "写真撮りにいきたい！", platform = "Android"),
-        Friend("demo-4", "Aoi", Presence.AskMe, "private", bio = "作業したり、お話ししたり"),
-        Friend("demo-5", "ねむ", Presence.Busy, "private", bio = "ワールド制作中…"),
-        Friend("demo-6", "sora", Presence.Online, "demo-world-3:789", "こもれびの庭", bio = "庭でのんびり。"),
-        Friend("demo-7", "ゆき", Presence.Offline, "offline", bio = "週末に会いましょう"),
-        Friend("demo-8", "Luna", Presence.Offline, "offline", bio = "See you soon ♡")
+        Friend("demo-1", "こはる", Presence.JoinMe, "demo-world-1:123", "雲の上の喫茶店", bio = "まったりお話ししよ〜", platform = "PC", trustRank = TrustRank.Trusted),
+        Friend("demo-2", "mikan", Presence.Online, "demo-world-1:456~hidden(usr_demo)~region(jp)", "雲の上の喫茶店", bio = "今日もどこかで。", trustRank = TrustRank.Known),
+        Friend("demo-3", "しろ", Presence.JoinMe, "demo-world-3:789", "こもれびの庭", bio = "写真撮りにいきたい！", platform = "Android", trustRank = TrustRank.NewUser),
+        Friend("demo-4", "Aoi", Presence.AskMe, "private", bio = "作業したり、お話ししたり", trustRank = TrustRank.User),
+        Friend("demo-5", "ねむ", Presence.Busy, "private", bio = "ワールド制作中…", trustRank = TrustRank.Trusted),
+        Friend("demo-6", "sora", Presence.Online, "demo-world-3:789", "こもれびの庭", bio = "庭でのんびり。", trustRank = TrustRank.Visitor),
+        Friend("demo-7", "ゆき", Presence.Offline, "offline", bio = "週末に会いましょう", trustRank = TrustRank.Known),
+        Friend("demo-8", "Luna", Presence.Offline, "offline", bio = "See you soon ♡", trustRank = TrustRank.Unknown)
     )
     fun instanceDetails(address: InstanceLocation) = when (address.worldId to address.number) {
         "demo-world-3" to "789" -> InstanceDetails(7, 32, address.accessLabel, "jp")

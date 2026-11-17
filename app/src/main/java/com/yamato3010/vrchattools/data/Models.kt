@@ -16,7 +16,7 @@ enum class Presence(val label: String) {
     }
 }
 data class Friend(val id: String, val name: String, val status: Presence, val location: String,
-    val worldName: String = "", val image: String = "", val bio: String = "", val platform: String = "PC") {
+    val worldName: String = "", val image: String = "", val bio: String = "", val platform: String = "PC", val trustRank: TrustRank = TrustRank.Unknown) {
     val locationLabel: String get() = when {
         status == Presence.Offline -> "また会えるのを楽しみに"
         location == "private" -> "プライベートなワールド"
@@ -44,11 +44,15 @@ fun filterFriends(friends: List<Friend>, query: String, filter: Int, saved: Set<
 
 internal fun JSONObject.toFriend(): Friend {
     val location = optString("location", "offline")
+    val tags = optJSONArray("tags")?.let { array ->
+        (0 until array.length()).mapNotNull { array.opt(it) as? String }
+    }
     return Friend(optString("id"), optString("displayName"), Presence.from(optString("status"), location),
         location, image = optString("userIcon").ifBlank { optString("profilePicOverride") }
             .ifBlank { optString("currentAvatarThumbnailImageUrl") }.ifBlank { optString("currentAvatarImageUrl") },
         bio = optString("statusDescription"),
-        platform = if (optString("last_platform").contains("android")) "Android" else "PC")
+        platform = if (optString("last_platform").contains("android")) "Android" else "PC",
+        trustRank = TrustRank.fromTags(tags))
 }
 internal fun JSONObject.toWorld() = World(optString("id"), optString("name"), optString("authorName"),
     optInt("occupants"), optInt("capacity", 32), optString("thumbnailImageUrl").ifBlank { optString("imageUrl") },

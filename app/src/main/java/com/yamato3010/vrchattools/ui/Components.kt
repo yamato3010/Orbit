@@ -68,13 +68,32 @@ fun SectionTitle(title: String, action: String? = null, onAction: () -> Unit = {
 }
 
 @Composable
-fun FriendRow(friend: Friend, saved: Boolean, onClick: () -> Unit, onSave: () -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow)
+private fun TrustRank.accentColor(): Color {
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    return when (this) {
+        TrustRank.Trusted -> if (dark) Color(0xFFD2ACFF) else Color(0xFF7442AE)
+        TrustRank.Known -> if (dark) Color(0xFFFFC178) else Color(0xFFA85B00)
+        TrustRank.User -> if (dark) Color(0xFF8BD6AE) else Color(0xFF237454)
+        TrustRank.NewUser -> if (dark) Color(0xFF9DCAFF) else Color(0xFF2161A8)
+        TrustRank.Visitor -> if (dark) Color(0xFFB9BDC8) else Color(0xFF656973)
+        TrustRank.Unknown -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+}
+
+@Composable
+fun FriendRow(friend: Friend, saved: Boolean, onClick: () -> Unit, onSave: () -> Unit, modifier: Modifier = Modifier, showTrustRank: Boolean = false) {
+    val base = MaterialTheme.colorScheme.surfaceContainerLow
+    val rankColor = friend.trustRank.accentColor()
+    val background = if (showTrustRank && friend.trustRank != TrustRank.Unknown) {
+        rankColor.copy(alpha = if (base.luminance() < 0.5f) 0.10f else 0.08f).compositeOver(base)
+    } else base
+    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(background)
         .clickable(onClick = onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
         Avatar(friend)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(friend.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, false))
+                if (showTrustRank) Text(friend.trustRank.label, style = MaterialTheme.typography.labelSmall, color = rankColor, maxLines = 1)
                 if (friend.status == Presence.JoinMe) Icon(Icons.Rounded.WavingHand, "参加歓迎", Modifier.size(15.dp), tint = friend.status.color())
             }
             Text(friend.locationLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)

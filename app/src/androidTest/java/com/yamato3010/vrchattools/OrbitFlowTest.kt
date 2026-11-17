@@ -30,6 +30,7 @@ class OrbitFlowTest {
         compose.onNodeWithText("2 人のフレンド").assertIsDisplayed()
         compose.onNode(hasSetTextAction()).performTextInput("こはる")
         compose.onNodeWithText("1 人のフレンド").assertIsDisplayed()
+        compose.onNodeWithText("Trusted").assertIsDisplayed()
         compose.onNode(hasText("こはる") and !hasSetTextAction()).performClick()
         compose.onNodeWithText("まったりお話ししよ〜").assertIsDisplayed()
         compose.onNodeWithContentDescription("ワールド詳細").performClick()

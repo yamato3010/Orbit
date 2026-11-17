@@ -248,7 +248,7 @@ private fun FriendsScreen(model: OrbitViewModel, onFriend: (Friend) -> Unit, onI
             item { Text("${overview.instances.size} インスタンス", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
             instanceItems(overview, model, onFriend, onInstance, includeOffline = true)
         } else {
-            items(filtered, key = { it.id }) { friend -> FriendRow(friend, friend.id in model.savedFriends, { onFriend(friend) }, { model.toggleFriend(friend.id) }) }
+            items(filtered, key = { it.id }) { friend -> FriendRow(friend, friend.id in model.savedFriends, { onFriend(friend) }, { model.toggleFriend(friend.id) }, showTrustRank = true) }
         }
         if (filtered.isEmpty()) item { EmptyState("フレンドが見つかりません", "検索やフィルターを変えてみてください。") }
     }
