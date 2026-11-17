@@ -120,7 +120,7 @@ fun LoginSheet(model: OrbitViewModel) {
             else { model.login(username.trim(), password); password = "" }
         }
     }
-    ModalBottomSheet(onDismissRequest = model::closeLogin, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = MaterialTheme.colorScheme.surface) {
+    ModalBottomSheet(onDismissRequest = model::closeLogin, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = { !model.authBusy || it != SheetValue.Hidden }), containerColor = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Icon(if (twoFactor) Icons.Outlined.VerifiedUser else Icons.Rounded.AllInclusive, null, Modifier.size(42.dp), tint = MaterialTheme.colorScheme.primary)
             Text(if (twoFactor) "もうひとつの、確認。" else "おかえりなさい。", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
