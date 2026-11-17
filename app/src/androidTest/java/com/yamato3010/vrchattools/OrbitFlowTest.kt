@@ -11,6 +11,17 @@ import org.junit.runner.RunWith
 class OrbitFlowTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+    @Test fun instanceViewShowsSharedRoomAndOpensItsDetails() {
+        compose.onNodeWithText("フレンドを見る").performClick()
+        compose.onNodeWithText("インスタンス別").performClick()
+        compose.onNodeWithText("3 インスタンス").assertIsDisplayed()
+        compose.onNodeWithText("フレンド 2 人").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("#789").performScrollTo().performClick()
+        compose.onNodeWithText("サンプルのインスタンスです。人数はデモデータです。").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("ワールドの詳細").performScrollTo().performClick()
+        compose.onNodeWithText("デモ用の架空のワールドとイラストです。").assertExists()
+    }
+
     @Test fun demoNavigationSearchAndDetailFlow() {
         compose.onNodeWithText("さあ、会いにいこう。").assertIsDisplayed()
         compose.onNodeWithText("フレンドを見る").performClick()

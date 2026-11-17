@@ -49,6 +49,7 @@ fun OrbitApp(model: OrbitViewModel) {
     var settings by rememberSaveable { mutableStateOf(false) }
     var friendId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedWorld by remember { mutableStateOf<World?>(null) }
+    var selectedInstance by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(model.error) { model.error?.let { snackbar.showSnackbar(it); model.dismissError() } }
     BackHandler(settings || page != 0) { if (settings) settings = false else page = 0 }
@@ -84,8 +85,8 @@ fun OrbitApp(model: OrbitViewModel) {
             AnimatedContent(targetState = if (settings) 4 else page, modifier = Modifier.widthIn(max = 840.dp).fillMaxSize(),
                 transitionSpec = { (fadeIn() + slideInHorizontally { it / 18 }) togetherWith fadeOut() }, label = "navigation") { current ->
                 when (current) {
-                    0 -> HomeScreen(model, onPage = { page = it }, onFriend = { friendId = it.id }, onWorld = { selectedWorld = it })
-                    1 -> FriendsScreen(model, onFriend = { friendId = it.id })
+                    0 -> HomeScreen(model, onPage = { page = it }, onFriend = { friendId = it.id }, onWorld = { selectedWorld = it }, onInstance = { selectedInstance = it.address.key })
+                    1 -> FriendsScreen(model, onFriend = { friendId = it.id }, onInstance = { selectedInstance = it.address.key })
                     2 -> WorldsScreen(model, onWorld = { selectedWorld = it })
                     3 -> ActivityScreen(model, onFriend = { friendId = it })
                     else -> SettingsScreen(model)
@@ -97,13 +98,19 @@ fun OrbitApp(model: OrbitViewModel) {
         FriendSheet(friend, model, onDismiss = { friendId = null }, onWorld = { friendId = null; selectedWorld = it })
     }
     selectedWorld?.let { world -> WorldSheet(world, model, onDismiss = { selectedWorld = null }) }
+    groupFriendsByInstance(model.socialFriends).instances.firstOrNull { it.address.key == selectedInstance }?.let { instance ->
+        InstanceSheet(instance, model, onDismiss = { selectedInstance = null },
+            onFriend = { selectedInstance = null; friendId = it.id },
+            onWorld = { selectedInstance = null; selectedWorld = it })
+    }
     if (model.loginOpen) LoginSheet(model)
 }
 
 private fun Modifier.clipShape() = clip(RoundedCornerShape(30.dp))
 
 @Composable
-private fun HomeScreen(model: OrbitViewModel, onPage: (Int) -> Unit, onFriend: (Friend) -> Unit, onWorld: (World) -> Unit) {
+private fun HomeScreen(model: OrbitViewModel, onPage: (Int) -> Unit, onFriend: (Friend) -> Unit, onWorld: (World) -> Unit, onInstance: (FriendInstance) -> Unit) {
+    val overview = groupFriendsByInstance(model.socialFriends)
     val online = model.friends.filter { it.status != Presence.Offline }
     LazyColumn(contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 10.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         item {
@@ -144,20 +151,16 @@ private fun HomeScreen(model: OrbitViewModel, onPage: (Int) -> Unit, onFriend: (
             }
         }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionTitle("いま、ここにいる", "すべて", { onPage(1) })
-                if (online.isEmpty()) Text("オンラインのフレンドはまだいません。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                else LazyRow(horizontalArrangement = Arrangement.spacedBy(19.dp)) {
-                    items(online, key = { it.id }) { friend ->
-                        Column(Modifier.width(65.dp).clickable { onFriend(friend) }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Avatar(friend, 64.dp)
-                            Text(friend.name, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(friend.status.label, style = MaterialTheme.typography.labelSmall, color = friend.status.color(), maxLines = 1)
-                        }
-                    }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("フレンドのいる場所", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    RefreshAction(model)
                 }
+                Text("${overview.instances.size} インスタンス · フレンドの多い順", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+        instanceItems(overview, model, onFriend, onInstance)
+        if (online.isEmpty()) item { EmptyState("みんなの場所を、ここに。", "フレンドがオンラインになると、インスタンスごとに表示されます。", Icons.Outlined.People) }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 SectionTitle("次は、どこへ？", "ワールド", { onPage(2) })
@@ -218,12 +221,20 @@ private fun RefreshAction(model: OrbitViewModel) {
 }
 
 @Composable
-private fun FriendsScreen(model: OrbitViewModel, onFriend: (Friend) -> Unit) {
+private fun FriendsScreen(model: OrbitViewModel, onFriend: (Friend) -> Unit, onInstance: (FriendInstance) -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableIntStateOf(0) }
-    val filtered = filterFriends(model.friends, query, filter, model.savedFriends)
+    var instanceView by rememberSaveable { mutableStateOf(false) }
+    val filtered = filterFriends(model.socialFriends, query, filter, model.savedFriends)
+    val overview = groupFriendsByInstance(filtered)
     LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { PageHeading("GOOD COMPANY", "フレンド", "つながりを、もう少し近くに。") { RefreshAction(model) } }
+        item {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                SegmentedButton(selected = !instanceView, onClick = { instanceView = false }, shape = SegmentedButtonDefaults.itemShape(0, 2)) { Text("個人表示") }
+                SegmentedButton(selected = instanceView, onClick = { instanceView = true }, shape = SegmentedButtonDefaults.itemShape(1, 2)) { Text("インスタンス別") }
+            }
+        }
         item { Spacer(Modifier.height(8.dp)); SearchBox(query, { query = it }, "名前・ワールドで検索") }
         item { FilterChips(listOf("すべて", "オンライン", "参加歓迎", "お気に入り"), filter) { filter = it } }
         item {
@@ -232,7 +243,12 @@ private fun FriendsScreen(model: OrbitViewModel, onFriend: (Friend) -> Unit) {
                 if (model.demo) Text("サンプルデータ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        items(filtered, key = { it.id }) { friend -> FriendRow(friend, friend.id in model.savedFriends, { onFriend(friend) }, { model.toggleFriend(friend.id) }) }
+        if (instanceView) {
+            item { Text("${overview.instances.size} インスタンス", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
+            instanceItems(overview, model, onFriend, onInstance, includeOffline = true)
+        } else {
+            items(filtered, key = { it.id }) { friend -> FriendRow(friend, friend.id in model.savedFriends, { onFriend(friend) }, { model.toggleFriend(friend.id) }) }
+        }
         if (filtered.isEmpty()) item { EmptyState("フレンドが見つかりません", "検索やフィルターを変えてみてください。") }
     }
 }
