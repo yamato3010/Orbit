@@ -23,7 +23,8 @@ data class Friend(val id: String, val name: String, val status: Presence, val lo
         location == "traveling" -> "ワールドを移動中"
         worldName.isNotBlank() -> worldName
         location.startsWith("wrld_") -> "ワールドに滞在中"
-        else -> "Web / アプリでオンライン"
+        location.isBlank() || location == "web" -> "Web / アプリでオンライン"
+        else -> "現在地を確認できません"
     }
 }
 data class World(val id: String, val name: String, val author: String, val occupants: Int,

@@ -19,7 +19,7 @@ class FriendFilterTest {
         assertTrue(filterFriends(DemoData.friends, "MIK", 3, setOf("demo-1")).isEmpty())
     }
     @Test fun locationSearchAndOfflineOrderingWork() {
-        assertEquals("しろ", filterFriends(DemoData.friends, "こもれび", 0, emptySet()).single().name)
+        assertEquals(setOf("しろ", "sora"), filterFriends(DemoData.friends, "こもれび", 0, emptySet()).map { it.name }.toSet())
         assertTrue(filterFriends(DemoData.friends.reversed(), "", 0, emptySet()).takeLast(2).all { it.status == Presence.Offline })
     }
     @Test fun privateLocationAndOfflineStateAreRespected() {

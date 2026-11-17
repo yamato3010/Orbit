@@ -119,6 +119,27 @@ class VrchatRepository(context: Context) {
         return (0 until array.length()).map { array.getJSONObject(it).toWorld() }
     }
     suspend fun world(id: String) = JSONObject(request("worlds/${URLEncoder.encode(id, "UTF-8")}")).toWorld()
+    suspend fun instance(address: InstanceLocation): InstanceDetails? {
+        val world = URLEncoder.encode(address.worldId, "UTF-8")
+        val instance = URLEncoder.encode(address.instanceId, "UTF-8")
+        val body = request("instances/$world:$instance")
+        if (body.trim() == "null") return null
+        val data = JSONObject(body)
+        val access = when (data.optString("type")) {
+            "hidden" -> "Friends+"
+            "friends" -> "Friends"
+            "private" -> if (data.optBoolean("canRequestInvite")) "Invite+" else "Invite"
+            "group" -> when (data.optString("groupAccessType")) {
+                "public" -> "Group Public"; "plus" -> "Group+"; "members" -> "Group"
+                else -> address.accessLabel
+            }
+            "public" -> "Public"
+            else -> address.accessLabel
+        }
+        fun count(key: String): Int? = if (data.has(key) && !data.isNull(key)) data.optInt(key, -1).takeIf { it >= 0 } else null
+        return InstanceDetails(count("n_users") ?: count("userCount"), count("capacity"), access,
+            data.optString("region").takeIf { it.isNotBlank() && it != "null" } ?: address.region)
+    }
     suspend fun logout() { try { request("logout", "PUT") } finally { jar.clear() } }
     fun clearSession() = jar.clear()
 }

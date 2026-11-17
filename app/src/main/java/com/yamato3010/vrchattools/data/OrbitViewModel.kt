@@ -4,12 +4,15 @@ import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -39,7 +42,13 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     private var refreshJob: Job? = null
     private var worldJob: Job? = null
     private var generation = 0
-    private val worldCache = mutableMapOf<String, World>()
+    private val worldMutex = Mutex()
+    private val instanceMutex = Mutex()
+    private val instanceCache = mutableMapOf<String, InstanceDetails>()
+    private val worldCache = mutableStateMapOf<String, World>()
+    val socialFriends: List<Friend> get() = friends.map { friend ->
+        worldCache[friend.location.substringBefore(':')]?.let { friend.copy(worldName = it.name) } ?: friend
+    }
     init {
         loadBookmarks()
         if (api.hasSession()) viewModelScope.launch {
@@ -95,7 +104,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
         if (!user.optString("id").startsWith("usr_")) throw IOException("ユーザー情報を取得できませんでした。再ログインしてください。")
         generation++; refreshJob?.cancel(); worldJob?.cancel()
         accountId = user.getString("id"); demo = false; displayName = user.optString("displayName")
-        friends = emptyList(); worlds = emptyList(); activities = readHistory(); worldCache.clear()
+        friends = emptyList(); worlds = emptyList(); activities = readHistory(); worldCache.clear(); instanceCache.clear()
         runCatching {
             val cached = JSONArray(prefs.getString("world_cache_$accountId", "[]"))
             for (i in 0 until cached.length()) { val w = cached.getJSONObject(i).toWorld(); worldCache[w.id] = w }
@@ -112,7 +121,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val fresh = api.friends()
                 if (epoch != generation) return@launch
-                recordChanges(fresh); friends = fresh; lastSync = System.currentTimeMillis()
+                instanceCache.clear(); recordChanges(fresh); friends = fresh; lastSync = System.currentTimeMillis()
                 if (worlds.isEmpty()) searchWorlds(worldQuery)
             } catch (e: Exception) { if (e is CancellationException) throw e; error = friendlyError(e) }
             finally { if (epoch == generation) busy = false }
@@ -132,11 +141,24 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
             finally { if (epoch == generation) worldLoading = false }
         }
     }
-    suspend fun resolveWorld(id: String): World? {
-        worldCache[id]?.let { return it }
-        DemoData.worlds.firstOrNull { demo && it.id == id }?.let { return it }
-        if (demo || !id.startsWith("wrld_")) return null
-        return api.world(id).also { worldCache[id] = it }
+    suspend fun resolveWorld(id: String): World? = worldMutex.withLock {
+        worldCache[id]?.let { return@withLock it }
+        DemoData.worlds.firstOrNull { demo && it.id == id }?.let { return@withLock it }
+        if (demo || !id.startsWith("wrld_")) return@withLock null
+        val epoch = generation
+        val world = api.world(id)
+        if (epoch != generation) return@withLock null
+        worldCache[id] = world
+        world
+    }
+    suspend fun resolveInstance(address: InstanceLocation): InstanceDetails? = instanceMutex.withLock {
+        if (demo) return@withLock DemoData.instanceDetails(address)
+        instanceCache[address.key]?.let { return@withLock it }
+        val epoch = generation
+        val details = api.instance(address)
+        if (epoch != generation) return@withLock null
+        if (details != null) instanceCache[address.key] = details
+        details
     }
     fun logout() {
         if (authBusy) return
@@ -145,7 +167,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
             try { api.logout() } catch (e: Exception) { if (e is CancellationException) throw e }
             finally {
                 demo = true; accountId = "demo"; displayName = "旅するあなた"; friends = DemoData.friends
-                worlds = DemoData.worlds; activities = DemoData.activities(); worldCache.clear(); loadBookmarks()
+                worlds = DemoData.worlds; activities = DemoData.activities(); worldCache.clear(); instanceCache.clear(); loadBookmarks()
                 busy = false; worldLoading = false; authBusy = false; lastSync = null; worldQuery = ""
             }
         }
