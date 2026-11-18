@@ -21,6 +21,7 @@ import java.io.IOException
 class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("orbit_preferences", 0)
     private val api = VrchatRepository(application)
+    val imageLoader get() = api.imageLoader
     var demo by mutableStateOf(true); private set
     var displayName by mutableStateOf("旅するあなた"); private set
     var friends by mutableStateOf(DemoData.friends); private set
@@ -75,7 +76,8 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
         prefs.edit().putStringSet("worlds_$accountId", savedWorlds).apply()
         prefs.edit().putString("world_cache_$accountId", JSONArray(worldCache.values.map { w ->
             JSONObject().put("id", w.id).put("name", w.name).put("authorName", w.author).put("occupants", w.occupants)
-                .put("capacity", w.capacity).put("thumbnailImageUrl", w.image).put("description", w.description)
+                .put("capacity", w.capacity).put("thumbnailImageUrl", w.image)
+                .put("imageUrl", w.imageFallbacks.firstOrNull().orEmpty()).put("description", w.description)
         }).toString()).apply()
     }
     fun bookmarkedWorlds() = (worlds + worldCache.values).distinctBy { it.id }.filter { it.id in savedWorlds }
@@ -204,5 +206,9 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
             ActivityEntry(it.getString("id"), it.getString("name"), it.getString("text"), it.getLong("time"), it.optString("friendId"), it.optString("kind"))
         } }
     }.getOrDefault(emptyList())
+    override fun onCleared() {
+        api.imageLoader.shutdown()
+        super.onCleared()
+    }
     private fun friendlyError(e: Exception) = if (e is ApiException) e.message!! else "通信できませんでした。ネットワーク接続を確認して、もう一度お試しください。"
 }

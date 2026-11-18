@@ -4,6 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import coil.ImageLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Cookie
@@ -11,7 +12,6 @@ import okhttp3.CookieJar
 import okhttp3.Credentials
 import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
@@ -68,13 +68,15 @@ internal class SessionCookies(context: Context) : CookieJar {
 class ApiException(val code: Int, message: String) : IOException(message)
 class VrchatRepository(context: Context) {
     private val jar = SessionCookies(context)
-    private val client = OkHttpClient.Builder().cookieJar(jar)
-        .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS).build()
+    private val client = vrchatClient(jar)
+    val imageLoader: ImageLoader = ImageLoader.Builder(context.applicationContext)
+        .okHttpClient(client)
+        .crossfade(180)
+        .build()
+
     fun hasSession() = jar.hasSession()
     private suspend fun request(path: String, method: String = "GET", json: JSONObject? = null, authorization: String? = null): String = withContext(Dispatchers.IO) {
         val builder = Request.Builder().url("https://api.vrchat.cloud/api/1/$path")
-            .header("User-Agent", "OrbitVRChatTools/0.1 (Android; personal companion)")
             .header("Accept", "application/json")
         if (authorization != null) builder.header("Authorization", authorization)
         if (method != "GET") builder.method(method, (json?.toString() ?: "{}").toRequestBody("application/json".toMediaType()))

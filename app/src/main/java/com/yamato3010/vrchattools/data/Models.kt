@@ -16,7 +16,8 @@ enum class Presence(val label: String) {
     }
 }
 data class Friend(val id: String, val name: String, val status: Presence, val location: String,
-    val worldName: String = "", val image: String = "", val bio: String = "", val platform: String = "PC", val trustRank: TrustRank = TrustRank.Unknown) {
+    val worldName: String = "", val image: String = "", val bio: String = "", val platform: String = "PC", val trustRank: TrustRank = TrustRank.Unknown, val imageFallbacks: List<String> = emptyList()) {
+    val imageUrls: List<String> get() = imageUrls(image, *imageFallbacks.toTypedArray())
     val locationLabel: String get() = when {
         status == Presence.Offline -> "また会えるのを楽しみに"
         location == "private" -> "プライベートなワールド"
@@ -28,7 +29,10 @@ data class Friend(val id: String, val name: String, val status: Presence, val lo
     }
 }
 data class World(val id: String, val name: String, val author: String, val occupants: Int,
-    val capacity: Int = 32, val image: String = "", val description: String = "", val palette: Int = 0)
+    val capacity: Int = 32, val image: String = "", val description: String = "", val palette: Int = 0,
+    val imageFallbacks: List<String> = emptyList()) {
+    val imageUrls: List<String> get() = imageUrls(image, *imageFallbacks.toTypedArray())
+}
 data class ActivityEntry(val id: String, val name: String, val text: String, val time: Long,
     val friendId: String = "", val kind: String = "online")
 
@@ -47,13 +51,17 @@ internal fun JSONObject.toFriend(): Friend {
     val tags = optJSONArray("tags")?.let { array ->
         (0 until array.length()).mapNotNull { array.opt(it) as? String }
     }
+    val images = imageUrls(optString("userIcon"), optString("iconUrl"), optString("profilePicOverride"),
+        optString("currentAvatarThumbnailImageUrl"), optString("currentAvatarImageUrl"))
     return Friend(optString("id"), optString("displayName"), Presence.from(optString("status"), location),
-        location, image = optString("userIcon").ifBlank { optString("profilePicOverride") }
-            .ifBlank { optString("currentAvatarThumbnailImageUrl") }.ifBlank { optString("currentAvatarImageUrl") },
+        location, image = images.firstOrNull().orEmpty(), imageFallbacks = images.drop(1),
         bio = optString("statusDescription"),
         platform = if (optString("last_platform").contains("android")) "Android" else "PC",
         trustRank = TrustRank.fromTags(tags))
 }
-internal fun JSONObject.toWorld() = World(optString("id"), optString("name"), optString("authorName"),
-    optInt("occupants"), optInt("capacity", 32), optString("thumbnailImageUrl").ifBlank { optString("imageUrl") },
-    optString("description"))
+internal fun JSONObject.toWorld(): World {
+    val images = imageUrls(optString("thumbnailImageUrl"), optString("imageUrl"))
+    return World(optString("id"), optString("name"), optString("authorName"),
+        optInt("occupants"), optInt("capacity", 32), images.firstOrNull().orEmpty(),
+        optString("description"), imageFallbacks = images.drop(1))
+}
