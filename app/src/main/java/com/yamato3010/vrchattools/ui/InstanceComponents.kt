@@ -52,7 +52,7 @@ private fun rememberInstanceData(group: FriendInstance, model: OrbitViewModel): 
 
 @Composable
 private fun InstanceImage(world: World?, modifier: Modifier = Modifier) {
-    if (world != null && (world.image.isNotBlank() || world.id.startsWith("demo-"))) WorldArt(world, modifier)
+    if (world != null && (world.imageUrls.isNotEmpty() || world.id.startsWith("demo-"))) WorldArt(world, modifier)
     else Box(modifier.background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
         Icon(Icons.Outlined.Public, null, Modifier.size(42.dp), tint = MaterialTheme.colorScheme.primary)
     }

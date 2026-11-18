@@ -19,11 +19,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
-import coil.compose.AsyncImage
 import com.yamato3010.vrchattools.data.*
 import kotlin.math.*
 
@@ -41,16 +39,14 @@ private val avatarColors = listOf(0xFFEAD8F5, 0xFFF9DCC7, 0xFFD3E8E2, 0xFFD6E2FA
 fun Avatar(friend: Friend, size: Dp = 52.dp, showStatus: Boolean = true) {
     val index = (friend.id.hashCode() and Int.MAX_VALUE) % avatarColors.size
     Box(Modifier.size(size)) {
-        Box(Modifier.fillMaxSize().clip(RoundedCornerShape(size * .36f)).background(Color(avatarColors[index])), contentAlignment = Alignment.Center) {
-            if (friend.image.isNotBlank()) AsyncImage(friend.image, friend.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            else {
+        RemoteImage(friend.imageUrls, "${friend.name}のアイコン",
+            Modifier.fillMaxSize().clip(RoundedCornerShape(size * .36f)).background(Color(avatarColors[index]))) {
                 Canvas(Modifier.fillMaxSize()) {
                     val ink = Color(0xFF665779).copy(alpha = .18f)
                     drawCircle(ink, this.size.width * .23f, androidx.compose.ui.geometry.Offset(this.size.width * .5f, this.size.height * .43f))
                     drawOval(ink, androidx.compose.ui.geometry.Offset(this.size.width * .16f, this.size.height * .65f), androidx.compose.ui.geometry.Size(this.size.width * .68f, this.size.height * .55f))
                 }
                 Text(friend.name.take(1), fontSize = (size.value * .33f).sp, color = Color(0xFF584267), fontWeight = FontWeight.Bold)
-            }
         }
         if (showStatus) Box(Modifier.align(Alignment.BottomEnd).size(15.dp).background(MaterialTheme.colorScheme.surface, CircleShape).padding(3.dp).background(friend.status.color(), CircleShape))
     }
@@ -102,9 +98,20 @@ fun FriendRow(friend: Friend, saved: Boolean, onClick: () -> Unit, onSave: () ->
     }
 }
 
-/** サンプルワールドにはオフライン用のイラストを、実際のワールドには VRChat のサムネイルを使う。 */
 @Composable
 fun WorldArt(world: World, modifier: Modifier = Modifier) {
+    if (world.imageUrls.isEmpty() && world.id.startsWith("demo-")) {
+        DemoWorldArt(world, modifier)
+    } else {
+        RemoteImage(world.imageUrls, "${world.name}のサムネイル", modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+            Icon(Icons.Outlined.Public, null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** オフライン用のイラストは、架空のデモワールドにだけ使う。 */
+@Composable
+private fun DemoWorldArt(world: World, modifier: Modifier) {
     val palettes = listOf(
         listOf(Color(0xFFB8A9DE), Color(0xFFEFD9E5), Color(0xFFFCEDDA)),
         listOf(Color(0xFF212C57), Color(0xFF79689B), Color(0xFFBCA4C5)),
@@ -142,7 +149,6 @@ fun WorldArt(world: World, modifier: Modifier = Modifier) {
                 }
             }
         }
-        if (world.image.isNotBlank()) AsyncImage(world.image, world.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
     }
 }
 
