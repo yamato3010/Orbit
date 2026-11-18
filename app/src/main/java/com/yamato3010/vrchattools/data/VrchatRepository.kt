@@ -67,9 +67,9 @@ internal class SessionCookies(context: Context) : CookieJar {
 }
 
 class ApiException(val code: Int, message: String) : IOException(message)
-class VrchatRepository(context: Context) {
+class VrchatRepository internal constructor(context: Context, clientOverride: okhttp3.OkHttpClient? = null) {
     private val jar = SessionCookies(context)
-    private val client = vrchatClient(jar)
+    private val client = clientOverride ?: vrchatClient(jar)
     val imageLoader: ImageLoader = ImageLoader.Builder(context.applicationContext)
         .okHttpClient(client)
         .crossfade(180)
@@ -143,6 +143,50 @@ class VrchatRepository(context: Context) {
         fun count(key: String): Int? = if (data.has(key) && !data.isNull(key)) data.optInt(key, -1).takeIf { it >= 0 } else null
         return InstanceDetails(count("n_users") ?: count("userCount"), count("capacity"), access,
             data.optString("region").takeIf { it.isNotBlank() && it != "null" } ?: address.region)
+    }
+    fun pipeline(): kotlinx.coroutines.flow.Flow<PipelineSignal> {
+        val token = jar.loadForRequest(SessionCookies.BASE_URL).firstOrNull { it.name == "auth" }?.value
+            ?: return kotlinx.coroutines.flow.flowOf(PipelineSignal.Disconnected(401))
+        return pipelineEvents(client.newBuilder().readTimeout(0, java.util.concurrent.TimeUnit.SECONDS)
+            .pingInterval(30, java.util.concurrent.TimeUnit.SECONDS).build(), token)
+    }
+    suspend fun notifications(): List<SocialNotification> {
+        val result = mutableListOf<SocialNotification>()
+        var offset = 0
+        do {
+            val page = JSONArray(request("auth/user/notifications?n=100&offset=$offset"))
+            for (i in 0 until page.length()) page.optJSONObject(i)?.toSocialNotification()?.let(result::add)
+            offset += page.length()
+        } while (page.length() == 100)
+        return result.distinctBy { it.id }.sortedByDescending { it.createdAt }
+    }
+    private fun segment(value: String) = URLEncoder.encode(value, "UTF-8")
+    suspend fun notificationAction(id: String, action: String) {
+        require(action in setOf("see", "hide", "accept"))
+        request("auth/user/notifications/${segment(id)}/$action", "PUT")
+    }
+    suspend fun inviteMessages(userId: String, action: InviteAction): List<InviteMessage> {
+        val data = JSONArray(request("message/${segment(userId)}/${action.messageType}"))
+        return (0 until data.length()).map { data.getJSONObject(it) }.mapNotNull {
+            val slot = it.optInt("slot", -1)
+            if (slot in 0..11) InviteMessage(slot, it.optString("message")) else null
+        }.sortedBy { it.slot }
+    }
+    suspend fun sendInvite(userId: String, location: String, slot: Int?) {
+        require(InstanceLocation.parse(location) != null)
+        request("invite/${segment(userId)}", "POST", JSONObject().put("instanceId", location).apply { slot?.let { require(it in 0..11); put("messageSlot", it) } })
+    }
+    suspend fun requestInvite(userId: String, slot: Int?) {
+        request("requestInvite/${segment(userId)}", "POST", JSONObject().apply { slot?.let { require(it in 0..11); put("requestSlot", it) } })
+    }
+    suspend fun respondInvite(notificationId: String, slot: Int) {
+        require(slot in 0..11)
+        request("invite/${segment(notificationId)}/response", "POST", JSONObject().put("responseSlot", slot))
+    }
+    suspend fun updateStatus(userId: String, status: SocialStatus, description: String): OwnProfile {
+        require(validStatusDescription(description))
+        return JSONObject(request("users/${segment(userId)}", "PUT", JSONObject()
+            .put("status", status.apiValue).put("statusDescription", description))).toOwnProfile()
     }
     suspend fun logout() { try { request("logout", "PUT") } finally { jar.clear() } }
     fun clearSession() = jar.clear()
