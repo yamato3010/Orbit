@@ -24,12 +24,14 @@ class ThemeSettingsTest {
             compose.onNodeWithContentDescription("設定").performClick()
             val toggle = compose.onNodeWithTag("dynamic_color_switch")
             toggle.performScrollTo().performClick()
-            if (initialDynamic) toggle.assertIsOff() else toggle.assertIsOn()
+            if (initialDynamic) compose.onNodeWithTag("dynamic_color_switch").assertIsOff()
+            else compose.onNodeWithTag("dynamic_color_switch").assertIsOn()
             compose.activityRule.scenario.recreate()
             compose.onNodeWithTag("dynamic_color_switch").performScrollTo().let {
                 if (initialDynamic) it.assertIsOff() else it.assertIsOn()
             }
-            compose.onNodeWithText("ダーク").performScrollTo().performClick().assertIsSelected()
+            compose.onNodeWithText("ダーク").performScrollTo().performClick()
+            compose.onNodeWithText("ダーク").assertIsSelected()
             compose.onNodeWithTag("dynamic_color_switch").performScrollTo().performClick()
             if (initialDynamic) compose.onNodeWithTag("dynamic_color_switch").assertIsOn()
             else compose.onNodeWithTag("dynamic_color_switch").assertIsOff()

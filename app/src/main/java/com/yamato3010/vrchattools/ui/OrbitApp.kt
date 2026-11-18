@@ -45,12 +45,12 @@ private enum class Destination(val label: String, val icon: ImageVector) {
 }
 
 @Composable
-fun OrbitApp(model: OrbitViewModel) {
-    var page by rememberSaveable { mutableIntStateOf(0) }
-    var settings by rememberSaveable { mutableStateOf(false) }
-    var friendId by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedWorld by remember { mutableStateOf<World?>(null) }
-    var selectedInstance by rememberSaveable { mutableStateOf<String?>(null) }
+fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
+    var page by appState::page
+    var settings by appState::settings
+    var friendId by appState::friendId
+    var selectedWorld by appState::selectedWorld
+    var selectedInstance by appState::selectedInstance
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(model.error) { model.error?.let { snackbar.showSnackbar(it); model.dismissError() } }
     BackHandler(settings || page != 0) { if (settings) settings = false else page = 0 }
@@ -90,7 +90,7 @@ fun OrbitApp(model: OrbitViewModel) {
                     1 -> FriendsScreen(model, onFriend = { friendId = it.id }, onInstance = { selectedInstance = it.address.key })
                     2 -> WorldsScreen(model, onWorld = { selectedWorld = it })
                     3 -> ActivityScreen(model, onFriend = { friendId = it })
-                    else -> SettingsScreen(model)
+                    else -> SettingsScreen(model, appState.settingsScroll)
                 }
             }
         }
@@ -311,9 +311,9 @@ private fun ActivityScreen(model: OrbitViewModel, onFriend: (String) -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(model: OrbitViewModel) {
+private fun SettingsScreen(model: OrbitViewModel, scrollState: androidx.compose.foundation.ScrollState) {
     var confirmLogout by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp, 12.dp, 24.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp, 12.dp, 24.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         PageHeading("MAKE IT YOURS", "あなたのOrbit", "好きな色で、心地よいつながりを。")
         Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.primaryContainer) {
             Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
