@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -26,7 +27,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -72,11 +72,18 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
         },
         bottomBar = {
             Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 18.dp, end = 18.dp, bottom = 10.dp, top = 6.dp), contentAlignment = Alignment.Center) {
-                NavigationBar(Modifier.widthIn(max = 600.dp).clipShape(), containerColor = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp, windowInsets = WindowInsets(0, 0, 0, 0)) {
-                    Destination.entries.forEachIndexed { index, destination ->
-                        NavigationBarItem(selected = page == index && !settings, onClick = { page = index; settings = false },
-                            icon = { Icon(destination.icon, null) }, label = { Text(destination.label) },
-                            colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer))
+                Surface(
+                    modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
+                    shape = RoundedCornerShape(30.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .45f)),
+                    tonalElevation = 2.dp
+                ) {
+                    NavigationBar(containerColor = Color.Transparent, tonalElevation = 0.dp, windowInsets = WindowInsets(0, 0, 0, 0)) {
+                        Destination.entries.forEachIndexed { index, destination ->
+                            NavigationBarItem(selected = page == index && !settings, onClick = { page = index; settings = false },
+                                icon = { Icon(destination.icon, null) }, label = { Text(destination.label) })
+                        }
                     }
                 }
             }
@@ -106,8 +113,6 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
     }
     if (model.loginOpen) LoginSheet(model)
 }
-
-private fun Modifier.clipShape() = clip(RoundedCornerShape(30.dp))
 
 @Composable
 private fun HomeScreen(model: OrbitViewModel, onPage: (Int) -> Unit, onFriend: (Friend) -> Unit, onWorld: (World) -> Unit, onInstance: (FriendInstance) -> Unit) {
