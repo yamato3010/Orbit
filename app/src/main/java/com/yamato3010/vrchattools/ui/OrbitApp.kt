@@ -46,6 +46,8 @@ private enum class Destination(val label: String, val icon: ImageVector) {
 
 @Composable
 fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
+    var notifications by appState::notifications
+    var statusEditor by appState::statusEditor
     var page by appState::page
     var settings by appState::settings
     var friendId by appState::friendId
@@ -53,19 +55,20 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
     var selectedInstance by appState::selectedInstance
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(model.error) { model.error?.let { snackbar.showSnackbar(it); model.dismissError() } }
-    BackHandler(settings || page != 0) { if (settings) settings = false else page = 0 }
+    LaunchedEffect(model.socialMessage) { model.socialMessage?.let { snackbar.showSnackbar(it); model.dismissSocialMessage() } }
+    BackHandler(settings || notifications || page != 0) { if (notifications) notifications = false else if (settings) settings = false else page = 0 }
     Scaffold(containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 24.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.AllInclusive, null, Modifier.size(31.dp), tint = MaterialTheme.colorScheme.primary)
                 Text("Orbit", Modifier.padding(start = 9.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp)
                 Spacer(Modifier.weight(1f))
-                if (model.demo) Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = CircleShape) {
-                    Text("DEMO", Modifier.padding(horizontal = 11.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
+                IconButton(onClick = { statusEditor = true }) { Icon(Icons.Outlined.AccountCircle, "自分のステータス") }
+                IconButton(onClick = { notifications = !notifications; settings = false }) {
+                    BadgedBox(badge = { if (model.unreadCount > 0) Badge { Text(model.unreadCount.toString()) } }) { Icon(Icons.Outlined.Notifications, "通知") }
                 }
-                Spacer(Modifier.width(8.dp))
-                IconButton(onClick = { settings = !settings }, modifier = Modifier.background(if (settings) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer, CircleShape)) {
+                IconButton(onClick = { settings = !settings; notifications = false }, modifier = Modifier.background(if (settings) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer, CircleShape)) {
                     Icon(if (settings) Icons.Rounded.Close else Icons.Outlined.Tune, if (settings) "設定を閉じる" else "設定")
                 }
             }
@@ -81,7 +84,7 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
                 ) {
                     NavigationBar(containerColor = Color.Transparent, tonalElevation = 0.dp, windowInsets = WindowInsets(0, 0, 0, 0)) {
                         Destination.entries.forEachIndexed { index, destination ->
-                            NavigationBarItem(selected = page == index && !settings, onClick = { page = index; settings = false },
+                            NavigationBarItem(selected = page == index && !settings && !notifications, onClick = { page = index; settings = false; notifications = false },
                                 icon = { Icon(destination.icon, null) }, label = { Text(destination.label) })
                         }
                     }
@@ -90,13 +93,14 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
         }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
-            AnimatedContent(targetState = if (settings) 4 else page, modifier = Modifier.widthIn(max = 840.dp).fillMaxSize(),
+            AnimatedContent(targetState = if (notifications) 5 else if (settings) 4 else page, modifier = Modifier.widthIn(max = 840.dp).fillMaxSize(),
                 transitionSpec = { (fadeIn() + slideInHorizontally { it / 18 }) togetherWith fadeOut() }, label = "navigation") { current ->
                 when (current) {
                     0 -> HomeScreen(model, onPage = { page = it }, onFriend = { friendId = it.id }, onWorld = { selectedWorld = it }, onInstance = { selectedInstance = it.address.key })
                     1 -> FriendsScreen(model, onFriend = { friendId = it.id }, onInstance = { selectedInstance = it.address.key })
                     2 -> WorldsScreen(model, onWorld = { selectedWorld = it })
                     3 -> ActivityScreen(model, onFriend = { friendId = it })
+                    5 -> NotificationsScreen(model)
                     else -> SettingsScreen(model, appState.settingsScroll)
                 }
             }
@@ -111,6 +115,7 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
             onFriend = { selectedInstance = null; friendId = it.id },
             onWorld = { selectedInstance = null; selectedWorld = it })
     }
+    if (statusEditor) StatusSheet(model) { statusEditor = false }
     if (model.loginOpen) LoginSheet(model)
 }
 
@@ -162,7 +167,7 @@ private fun HomeScreen(model: OrbitViewModel, onPage: (Int) -> Unit, onFriend: (
                     Text("フレンドのいる場所", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     RefreshAction(model)
                 }
-                Text("${overview.instances.size} インスタンス · フレンドの多い順", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${overview.instances.size} インスタンス · ${model.realtimeState.label}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         instanceItems(overview, model, onFriend, onInstance)
@@ -294,7 +299,7 @@ private fun ActivityScreen(model: OrbitViewModel, onFriend: (String) -> Unit) {
             Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(22.dp)) {
                 Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(Icons.Outlined.Info, null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
-                    Text(if (model.demo) "これはサンプルのログです。ログインすると、更新時に検出した変化を端末に記録します。" else "更新時に検出したフレンドの変化を記録します。アプリを閉じている間の履歴は取得しません。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Text(if (model.demo) "これはサンプルのログです。ログインすると、更新時に検出した変化を端末に記録します。" else "更新時に検出したフレンドの変化を記録します。${model.realtimeState.label}。アプリを閉じている間の履歴は取得しません。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
                 }
             }
         }
@@ -359,6 +364,13 @@ private fun SettingsScreen(model: OrbitViewModel, scrollState: androidx.compose.
                         }
                     }
                 }
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("リアルタイム更新", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { Text(model.realtimeState.label); Text("アプリを表示している間に自動更新します。", style = MaterialTheme.typography.bodySmall) }
+                Switch(checked = model.realtimeEnabled, onCheckedChange = model::setRealtime)
             }
         }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

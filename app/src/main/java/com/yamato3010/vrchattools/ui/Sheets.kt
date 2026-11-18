@@ -34,6 +34,7 @@ private fun openLink(context: Context, uri: Uri): Boolean = try {
 
 @Composable
 fun FriendSheet(friend: Friend, model: OrbitViewModel, onDismiss: () -> Unit, onWorld: (World) -> Unit) {
+    var inviteAction by remember { mutableStateOf<InviteAction?>(null) }
     val context = LocalContext.current
     var world by remember(friend.location) { mutableStateOf<World?>(null) }
     var loadError by remember { mutableStateOf(false) }
@@ -63,6 +64,10 @@ fun FriendSheet(friend: Friend, model: OrbitViewModel, onDismiss: () -> Unit, on
                 Icon(if (friend.id in model.savedFriends) Icons.Rounded.Star else Icons.Rounded.StarOutline, null, Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp)); Text(if (friend.id in model.savedFriends) "お気に入りに追加済み" else "お気に入りに追加")
             }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(onClick = { inviteAction = InviteAction.Invite }, enabled = !model.socialBusy, modifier = Modifier.weight(1f)) { Text("招待する") }
+                OutlinedButton(onClick = { inviteAction = InviteAction.Request }, enabled = !model.socialBusy && friend.status != Presence.Offline, modifier = Modifier.weight(1f)) { Text("招待をリクエスト") }
+            }
             if (!model.demo) {
                 if (friend.location.startsWith("wrld_") && friend.location.contains(":")) Button(onClick = {
                     val uri = Uri.parse("https://vrchat.com/home/launch").buildUpon().appendQueryParameter("worldId", worldId)
@@ -74,6 +79,7 @@ fun FriendSheet(friend: Friend, model: OrbitViewModel, onDismiss: () -> Unit, on
             if (linkError) Text("リンクを開けるアプリが見つかりませんでした。", color = MaterialTheme.colorScheme.error)
         }
     }
+    inviteAction?.let { InviteDialog(model, it, friend.id, friend.name) { inviteAction = null } }
 }
 
 @Composable
