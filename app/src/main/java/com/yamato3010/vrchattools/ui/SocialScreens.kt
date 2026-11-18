@@ -4,6 +4,11 @@ package com.yamato3010.vrchattools.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -130,8 +135,9 @@ fun StatusSheet(model: OrbitViewModel, onDismiss: () -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
     ModalBottomSheet(onDismissRequest = { if (!model.socialBusy) onDismiss() }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("自分のステータス", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text("${model.ownProfile.name} · 現在：${model.ownProfile.status.label}", style = MaterialTheme.typography.bodySmall)
+            StatusProfileHeader(model.ownProfile)
+            Text("自分のステータス", modifier = Modifier.align(Alignment.CenterHorizontally), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("${model.ownProfile.name} · 現在：${model.ownProfile.status.label}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.align(Alignment.CenterHorizontally))
             if (model.demo) Text("デモ操作です。実際のアカウントには反映されません。", style = MaterialTheme.typography.bodySmall)
             SocialStatus.entries.chunked(2).forEach { row -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { value -> FilterChip(selected = status == value, onClick = { status = value }, label = { Text(value.label) }) }
@@ -148,6 +154,26 @@ fun StatusSheet(model: OrbitViewModel, onDismiss: () -> Unit) {
             OutlinedTextField(name, { name = it.take(24) }, label = { Text("プリセット名") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedButton(onClick = { model.savePreset(name, status, description); name = "" }, enabled = name.isNotBlank() && model.presets.size < 12, modifier = Modifier.fillMaxWidth()) { Text("この内容を端末に保存") }
             Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+/** Expressive の公式の花形をアバターの枠に使い、プロフィール画像全体が見えるようにする。 */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun StatusProfileHeader(profile: OwnProfile) {
+    val flower = MaterialShapes.Flower.toShape()
+    val colors = MaterialTheme.colorScheme
+    Box(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(184.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(174.dp).rotate(-12f).background(colors.tertiaryContainer.copy(alpha = .55f), flower))
+            Box(Modifier.size(162.dp).rotate(12f).background(colors.primaryContainer, flower))
+            RemoteImage(profile.imageUrls, "自分のアイコン",
+                Modifier.size(112.dp).border(4.dp, colors.surface, CircleShape).padding(4.dp)
+                    .clip(CircleShape).background(colors.secondaryContainer)) {
+                Text(profile.name.take(1).ifBlank { "O" }, style = MaterialTheme.typography.displayMedium,
+                    fontWeight = FontWeight.Bold, color = colors.onSecondaryContainer)
+            }
         }
     }
 }

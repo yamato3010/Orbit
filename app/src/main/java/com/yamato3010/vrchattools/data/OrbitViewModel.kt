@@ -105,7 +105,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
                                 is PipelineEvent.OwnChanged -> {
                                     profileRevision++
                                     ownProfile = ownProfile.copy(status = event.status ?: ownProfile.status, description = event.description ?: ownProfile.description,
-                                        name = event.name ?: ownProfile.name, location = event.location ?: ownProfile.location)
+                                        name = event.name ?: ownProfile.name, location = event.location ?: ownProfile.location, imageUrls = event.images ?: ownProfile.imageUrls)
                                     displayName = ownProfile.name
                                 }
                                 PipelineEvent.Resync -> { refresh(); refreshNotifications() }

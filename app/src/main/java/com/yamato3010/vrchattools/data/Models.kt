@@ -51,8 +51,7 @@ internal fun JSONObject.toFriend(): Friend {
     val tags = optJSONArray("tags")?.let { array ->
         (0 until array.length()).mapNotNull { array.opt(it) as? String }
     }
-    val images = imageUrls(optString("userIcon"), optString("iconUrl"), optString("profilePicOverride"),
-        optString("currentAvatarThumbnailImageUrl"), optString("currentAvatarImageUrl"))
+    val images = profileImageUrls()
     return Friend(optString("id"), optString("displayName"), Presence.from(optString("status"), location),
         location, image = images.firstOrNull().orEmpty(), imageFallbacks = images.drop(1),
         bio = optString("statusDescription"),
@@ -65,3 +64,6 @@ internal fun JSONObject.toWorld(): World {
         optInt("occupants"), optInt("capacity", 32), images.firstOrNull().orEmpty(),
         optString("description"), imageFallbacks = images.drop(1))
 }
+
+internal val profileImageFields = listOf("userIcon", "iconUrl", "profilePicOverride", "currentAvatarThumbnailImageUrl", "currentAvatarImageUrl")
+internal fun JSONObject.profileImageUrls(): List<String> = imageUrls(*profileImageFields.map { optString(it) }.toTypedArray())

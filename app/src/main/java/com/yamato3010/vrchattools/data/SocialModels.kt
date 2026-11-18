@@ -18,9 +18,9 @@ val defaultStatusPresets = listOf(
 const val STATUS_DESCRIPTION_LIMIT = 32
 fun validStatusDescription(text: String) = text.length <= STATUS_DESCRIPTION_LIMIT
 
-data class OwnProfile(val id: String, val name: String, val status: SocialStatus, val description: String, val location: String)
+data class OwnProfile(val id: String, val name: String, val status: SocialStatus, val description: String, val location: String, val imageUrls: List<String> = emptyList())
 internal fun JSONObject.toOwnProfile() = OwnProfile(optString("id"), optString("displayName"),
-    SocialStatus.from(optString("status")), optString("statusDescription"), optString("location", "offline"))
+    SocialStatus.from(optString("status")), optString("statusDescription"), optString("location", "offline"), profileImageUrls())
 
 enum class NotificationType(val apiValue: String, val label: String) {
     Invite("invite", "招待"), RequestInvite("requestInvite", "招待リクエスト"), FriendRequest("friendRequest", "フレンド申請"),

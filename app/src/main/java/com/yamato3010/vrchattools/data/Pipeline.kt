@@ -37,7 +37,7 @@ fun applyFriendUpdate(friends: List<Friend>, update: FriendUpdate): List<Friend>
 sealed interface PipelineEvent {
     data class FriendChanged(val update: FriendUpdate) : PipelineEvent
     data class NotificationChanged(val change: NotificationChange) : PipelineEvent
-    data class OwnChanged(val status: SocialStatus?, val description: String?, val name: String?, val location: String?) : PipelineEvent
+    data class OwnChanged(val status: SocialStatus?, val description: String?, val name: String?, val location: String?, val images: List<String>? = null) : PipelineEvent
     data object Resync : PipelineEvent
     data object SessionError : PipelineEvent
 }
@@ -59,7 +59,7 @@ internal fun parsePipelineEvent(text: String): PipelineEvent? = runCatching {
         type.startsWith("friend-") && type in setOf("friend-add", "friend-delete", "friend-online", "friend-offline", "friend-active", "friend-location", "friend-update") -> {
             val user = data.optJSONObject("user") ?: JSONObject()
             val id = data.textOrNull("userId") ?: data.textOrNull("userid") ?: user.textOrNull("id") ?: return@runCatching null
-            val imageFields = listOf("userIcon", "iconUrl", "profilePicOverride", "currentAvatarThumbnailImageUrl", "currentAvatarImageUrl")
+            val imageFields = profileImageFields
             val images = if (imageFields.any(user::has)) imageUrls(*imageFields.map { user.textOrNull(it) }.toTypedArray()) else null
             val tags = user.optJSONArray("tags")
             val platform = data.textOrNull("platform") ?: user.textOrNull("last_platform")
@@ -71,7 +71,8 @@ internal fun parsePipelineEvent(text: String): PipelineEvent? = runCatching {
         type == "user-update" || type == "user-location" -> {
             val user = data.optJSONObject("user") ?: JSONObject()
             PipelineEvent.OwnChanged(user.textOrNull("status")?.let(SocialStatus::from), user.textOrNull("statusDescription"), user.textOrNull("displayName"),
-                data.textOrNull("location") ?: user.textOrNull("location"))
+                data.textOrNull("location") ?: user.textOrNull("location"),
+                if (profileImageFields.any(user::has)) user.profileImageUrls() else null)
         }
         else -> null
     }

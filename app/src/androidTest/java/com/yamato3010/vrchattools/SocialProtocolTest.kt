@@ -46,6 +46,13 @@ class SocialProtocolTest {
     @Test fun ownProfilePatchDoesNotInventMissingLocationOrDescription() {
         val event = parsePipelineEvent(JSONObject().put("type", "user-update").put("content", JSONObject().put("user", JSONObject().put("status", "ask me"))).toString()) as PipelineEvent.OwnChanged
         assertEquals(SocialStatus.AskMe, event.status); assertNull(event.description); assertNull(event.location)
+        assertNull(event.images)
+        val user = JSONObject().put("id", "usr_self").put("userIcon", "https://api.vrchat.cloud/icon")
+            .put("currentAvatarThumbnailImageUrl", "https://api.vrchat.cloud/avatar")
+        assertEquals(listOf("https://api.vrchat.cloud/icon", "https://api.vrchat.cloud/avatar"), user.toOwnProfile().imageUrls)
+        val iconEvent = parsePipelineEvent(JSONObject().put("type", "user-update").put("content", JSONObject().put("user", user)).toString()) as PipelineEvent.OwnChanged
+        assertEquals(user.toOwnProfile().imageUrls, iconEvent.images)
+
     }
     @Test fun pipelineEncodesTokenUsesUserAgentAndClosesOnCancellation() = runBlocking {
         val server = server()
