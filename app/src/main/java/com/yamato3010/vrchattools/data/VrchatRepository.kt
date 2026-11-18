@@ -11,6 +11,7 @@ import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.Credentials
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -75,8 +76,11 @@ class VrchatRepository(context: Context) {
         .build()
 
     fun hasSession() = jar.hasSession()
-    private suspend fun request(path: String, method: String = "GET", json: JSONObject? = null, authorization: String? = null): String = withContext(Dispatchers.IO) {
-        val builder = Request.Builder().url("https://api.vrchat.cloud/api/1/$path")
+    private suspend fun request(path: String, method: String = "GET", json: JSONObject? = null, authorization: String? = null): String =
+        request("https://api.vrchat.cloud/api/1/$path".toHttpUrl(), method, json, authorization)
+
+    private suspend fun request(url: HttpUrl, method: String = "GET", json: JSONObject? = null, authorization: String? = null): String = withContext(Dispatchers.IO) {
+        val builder = Request.Builder().url(url)
             .header("Accept", "application/json")
         if (authorization != null) builder.header("Authorization", authorization)
         if (method != "GET") builder.method(method, (json?.toString() ?: "{}").toRequestBody("application/json".toMediaType()))
@@ -122,9 +126,7 @@ class VrchatRepository(context: Context) {
     }
     suspend fun world(id: String) = JSONObject(request("worlds/${URLEncoder.encode(id, "UTF-8")}")).toWorld()
     suspend fun instance(address: InstanceLocation): InstanceDetails? {
-        val world = URLEncoder.encode(address.worldId, "UTF-8")
-        val instance = URLEncoder.encode(address.instanceId, "UTF-8")
-        val body = request("instances/$world:$instance")
+        val body = request(instanceApiUrl(address))
         if (body.trim() == "null") return null
         val data = JSONObject(body)
         val access = when (data.optString("type")) {

@@ -29,25 +29,36 @@ import androidx.compose.ui.unit.dp
 import com.yamato3010.vrchattools.data.*
 import kotlinx.coroutines.CancellationException
 
-private data class InstanceData(val world: World?, val details: InstanceDetails?, val loading: Boolean, val failed: Boolean, val retry: () -> Unit)
+private data class InstanceData(val world: World?, val details: InstanceDetails?, val loading: Boolean, val errors: List<String>, val retry: () -> Unit)
 
 @Composable
 private fun rememberInstanceData(group: FriendInstance, model: OrbitViewModel): InstanceData {
     var retry by remember(group.address.key) { mutableIntStateOf(0) }
     var world by remember(group.address.worldId, model.demo) { mutableStateOf(model.worlds.firstOrNull { it.id == group.address.worldId }) }
     var details by remember(group.address.key, model.demo, model.lastSync) { mutableStateOf<InstanceDetails?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var failed by remember { mutableStateOf(false) }
+    var loading by remember(group.address.key) { mutableStateOf(true) }
+    var worldError by remember(group.address.key) { mutableStateOf<String?>(null) }
+    var instanceError by remember(group.address.key) { mutableStateOf<String?>(null) }
     LaunchedEffect(group.address.key, model.demo, model.lastSync, retry) {
-        loading = true; failed = false
+        loading = true; worldError = null; instanceError = null
         try {
-            try { world = model.resolveWorld(group.address.worldId) }
-            catch (e: Exception) { if (e is CancellationException) throw e; failed = true }
-            try { details = model.resolveInstance(group.address); if (details == null) failed = true }
-            catch (e: Exception) { if (e is CancellationException) throw e; failed = true }
+            try {
+                world = model.resolveWorld(group.address.worldId)
+                if (world == null) worldError = instanceLoadError(InstanceResource.World, null)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                worldError = instanceLoadError(InstanceResource.World, e)
+            }
+            try {
+                details = model.resolveInstance(group.address)
+                if (details == null) instanceError = instanceLoadError(InstanceResource.Instance, null)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                instanceError = instanceLoadError(InstanceResource.Instance, e)
+            }
         } finally { loading = false }
     }
-    return InstanceData(world, details, loading, failed) { retry++ }
+    return InstanceData(world, details, loading, listOfNotNull(worldError, instanceError)) { retry++ }
 }
 
 @Composable
@@ -141,9 +152,11 @@ fun InstanceSheet(group: FriendInstance, model: OrbitViewModel, onDismiss: () ->
                 Spacer(Modifier.height(12.dp)); InstanceMetadata(group, data)
             }
             if (data.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-            if (data.failed && !data.loading) item {
+            if (data.errors.isNotEmpty() && !data.loading) item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("一部の情報を取得できませんでした。", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        data.errors.forEach { message -> Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
                     TextButton(onClick = data.retry) { Text("再試行") }
                 }
             }

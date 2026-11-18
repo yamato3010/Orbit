@@ -25,3 +25,11 @@ internal fun vrchatClient(session: CookieJar): OkHttpClient = OkHttpClient.Build
         chain.proceed(chain.request().newBuilder().header("User-Agent", ORBIT_USER_AGENT).build())
     }
     .build()
+
+/** これらの区切り文字は VRChat のインスタンス ID の構文に含まれる。フォームエンコードすると WAF にブロックされる。 */
+internal fun instanceApiUrl(address: InstanceLocation): HttpUrl = HttpUrl.Builder()
+    .scheme("https")
+    .host("api.vrchat.cloud")
+    .addPathSegments("api/1/instances")
+    .addPathSegment(address.location)
+    .build()
