@@ -10,15 +10,35 @@ VRChatのフレンドとワールドを身近にする、Kotlin / Jetpack Compos
 ## 使える機能
 
 - **ホーム**：オンライン人数、フレンドの滞在インスタンス、ワールド、お気に入り
-- **フレンド**：個人表示／インスタンス別表示、名前・現在地の検索、オンライン／参加歓迎／お気に入りでの絞り込み、詳細表示
+- **フレンド**：個人表示／インスタンス別表示、名前・現在地の検索、オンライン／参加歓迎／お気に入りでの絞り込み、トラストランクに応じた控えめな背景色、詳細表示
 - **ワールド**：検索、詳細表示、端末内のブックマーク、VRChatのWebページを開く
 - **アクティビティ**：手動更新時に検出したオンライン状態と現在地の変化を端末内に最大100件保存
-- **設定**：ライト／ダーク／システム、Android 12以降のダイナミックカラー
+- **設定**：ライト／ダーク／システム、Android 12以降のMaterial You動的カラー、現在の配色プレビュー
 - **ログイン**：ユーザー名とパスワード、TOTP／メールOTP／リカバリーコードによる2段階認証、セッション復元、ログアウト
 
 初回起動は**デモモード**です。デモのフレンド・ワールドは架空で、ワールド画像はCompose Canvasによるイラストです。ホームまたは設定からログインするとVRChat APIのデータに切り替わります。フレンドとログ画面の更新ボタンで最新情報を取得します。
 
 お気に入りはOrbit専用で、VRChatのお気に入りとは同期しません。履歴は更新ごとの差分であり、閉じている間の全イベントやPCのプレイ時間は取得しません。アバター管理・招待の送信・WebSocket常時接続・PCのローカルログ連携は未実装です。プライベートな現在地は公開せず、そのまま非公開として表示します。
+
+## Material Youとトラストランクの色
+
+Android 12以降では、初期状態で壁紙由来のMaterial Youカラーを使います。設定の「壁紙の色を使う」で切り替えられ、ライト／ダーク／システムの各モードに対応します。明示的に保存したオン／オフ設定は引き継ぎます。配色変更中も表示画面と設定のスクロール位置を維持します。Android 11以前はOrbit標準の配色を使います。
+
+フレンド画面の「個人表示」では、テーマの背景へランク色を薄く重ね、ランク名も表示します。
+
+| ランク | 色 | VRChat APIタグ |
+| --- | --- | --- |
+| Trusted | 紫 | `system_trust_veteran` |
+| Known | オレンジ | `system_trust_trusted` |
+| User | 緑 | `system_trust_known` |
+| New User | 青 | `system_trust_basic` |
+| Visitor | 灰色 | ランクタグのない有効なタグ一覧 |
+
+<img src="docs/screenshots/friends-ranks-light.png" alt="ライトテーマのトラストランク別背景色" width="280" />
+<img src="docs/screenshots/friends-ranks-dark.png" alt="ダークテーマのトラストランク別背景色" width="280" />
+<img src="docs/screenshots/material-you-settings.png" alt="Material Youの設定と配色プレビュー" width="280" />
+
+ランク情報を取得できない場合は「ランク不明」とし、通常の背景色にします。背景色はライトで8%、ダークで10%の薄い重ね色で、名前・現在地の文字色はテーマに従います。オンライン状況のドットとは色の役割を分けています。
 
 ## インスタンス別表示
 
@@ -59,10 +79,11 @@ ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest
 ## 今回の検証結果
 
 - Debug APKのビルド成功
-- フレンド検索・状態判定5件とインスタンスの識別・グルーピング6件のユニットテスト成功（テンプレートのテストを含めると12件）
+- フレンド検索・状態判定5件、インスタンスの識別・グルーピング6件、トラストランク判定4件のユニットテスト成功（テンプレートのテストを含めると16件）
 - Android Lint：エラー0件。依存関係の更新案・KTXの利用案などの警告は残っています。
 - Android 17エミュレーターでホームとインスタンスカードの実表示を確認し、上のスクリーンショットを撮影
-- Android 17の独立したテスト用エミュレーターで、UIフロー2件＋アプリコンテキスト1件の計3件成功。個人表示での検索・詳細遷移と、インスタンス別表示・同席フレンド人数・インスタンス詳細からワールド詳細への遷移を確認。初回のテスト起動はエミュレーターの起動負荷でタイムアウトしたため、テストAPKを `cmd package compile -m speed -f` で事前コンパイルした後に再実行しました。
+- Android 17の独立したテスト用エミュレーターで端末テスト5件成功：個人表示の検索・詳細遷移、インスタンス別表示、動的テーマの切り替えとActivity再生成後の保持、APIレスポンスのランク解析、アプリコンテキスト。テストAPKは `cmd package compile -m speed -f` で事前コンパイルして実行しました。
+- Material Youのライト／ダーク両方で、ランク別背景色と設定画面の表示を確認
 - 実アカウントのログイン・2段階認証・API応答は未検証
 
 ## デザインと実装の参考
@@ -71,6 +92,7 @@ ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest
 - [Material 3 Expressive](https://m3.material.io/blog/building-with-m3-expressive)：形、色、タイポグラフィ、モーション
 - [ArchiveTune](https://github.com/rukamori/ArchiveTune)：大きな見出し、丸みのある操作部、カードの構成
 - [Petal](https://github.com/shreyagarwal72/petal)：柔らかな色調とExpressiveな形
+- [VRChatユーザータグ](https://vrchat.community/tags/user)：トラストランクのタグ対応
 - [VRChat API仕様](https://github.com/vrchatapi/specification)：認証・フレンド・ワールド取得
 
 参考アプリのコード・画像は転載していません。VRChatの非公式アプリです。
