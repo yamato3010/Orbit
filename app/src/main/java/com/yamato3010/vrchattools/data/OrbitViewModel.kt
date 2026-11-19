@@ -309,6 +309,20 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
             finally { if (epoch == generation) worldLoading = false }
         }
     }
+    suspend fun resolveFriendDetails(friend: Friend): List<DetailField> {
+        if (demo) return demoFriendDetails(friend.id)
+        val epoch = generation
+        val result = api.friendDetails(friend.id)
+        if (epoch != generation) throw CancellationException("Account changed")
+        return result
+    }
+    suspend fun resolveWorldDetails(world: World): List<DetailField> {
+        if (demo) return demoWorldDetails(world)
+        val epoch = generation
+        val result = api.worldDetails(world.id)
+        if (epoch != generation) throw CancellationException("Account changed")
+        return result
+    }
     suspend fun resolveWorld(id: String): World? = worldMutex.withLock {
         worldCache[id]?.let { return@withLock it }
         DemoData.worlds.firstOrNull { demo && it.id == id }?.let { return@withLock it }
@@ -320,7 +334,8 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
         world
     }
     suspend fun resolveInstance(address: InstanceLocation): InstanceDetails? = instanceMutex.withLock {
-        if (demo) return@withLock DemoData.instanceDetails(address)
+        if (demo) return@withLock DemoData.instanceDetails(address)?.let { details -> details.copy(extra = listOf(
+            DetailField("稼働中", "はい"), DetailField("満員", "いいえ"), DetailField("プラットフォーム別人数", "PC：${details.occupants} 人\nAndroid：0 人"))) }
         instanceCache[address.key]?.let { return@withLock it }
         val epoch = generation
         val details = api.instance(address)

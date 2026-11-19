@@ -65,4 +65,4 @@ fun groupFriendsByInstance(friends: List<Friend>): SocialOverview {
 }
 
 /** このインスタンスの人数を集計する。ワールド全体の人数を表す World.occupants は使わない。 */
-data class InstanceDetails(val occupants: Int?, val capacity: Int?, val accessLabel: String, val region: String?)
+data class InstanceDetails(val occupants: Int?, val capacity: Int?, val accessLabel: String, val region: String?, val extra: List<DetailField> = emptyList())

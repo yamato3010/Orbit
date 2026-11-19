@@ -125,6 +125,8 @@ class VrchatRepository internal constructor(context: Context, clientOverride: ok
         return (0 until array.length()).map { array.getJSONObject(it).toWorld() }
     }
     suspend fun world(id: String) = JSONObject(request("worlds/${URLEncoder.encode(id, "UTF-8")}")).toWorld()
+    suspend fun friendDetails(id: String) = JSONObject(request("users/${URLEncoder.encode(id, "UTF-8")}")).friendDetailFields()
+    suspend fun worldDetails(id: String) = JSONObject(request("worlds/${URLEncoder.encode(id, "UTF-8")}")).worldDetailFields()
     suspend fun instance(address: InstanceLocation): InstanceDetails? {
         val body = request(instanceApiUrl(address))
         if (body.trim() == "null") return null
@@ -142,7 +144,7 @@ class VrchatRepository internal constructor(context: Context, clientOverride: ok
         }
         fun count(key: String): Int? = if (data.has(key) && !data.isNull(key)) data.optInt(key, -1).takeIf { it >= 0 } else null
         return InstanceDetails(count("n_users") ?: count("userCount"), count("capacity"), access,
-            data.optString("region").takeIf { it.isNotBlank() && it != "null" } ?: address.region)
+            data.optString("region").takeIf { it.isNotBlank() && it != "null" } ?: address.region, data.instanceDetailFields())
     }
     fun pipeline(): kotlinx.coroutines.flow.Flow<PipelineSignal> {
         val token = jar.loadForRequest(SessionCookies.BASE_URL).firstOrNull { it.name == "auth" }?.value
