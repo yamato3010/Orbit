@@ -60,6 +60,9 @@ fun FriendSheet(friend: Friend, model: OrbitViewModel, onDismiss: () -> Unit, on
                 }
                 if (world != null) IconButton(onClick = { world?.let(onWorld) }) { Icon(Icons.Rounded.ChevronRight, "ワールド詳細") }
             }
+            ExpandableDetails("${model.ownProfile.id}/friend/${friend.id}", listOfNotNull(DetailField("ユーザーID", friend.id),
+                friend.trustRank.takeUnless { it == TrustRank.Unknown }?.let { DetailField("トラストランク", it.label) }), model.demo,
+                load = { model.resolveFriendDetails(friend) })
             FilledTonalButton(onClick = { model.toggleFriend(friend.id) }, Modifier.fillMaxWidth().height(52.dp)) {
                 Icon(if (friend.id in model.savedFriends) Icons.Rounded.Star else Icons.Rounded.StarOutline, null, Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp)); Text(if (friend.id in model.savedFriends) "お気に入りに追加済み" else "お気に入りに追加")
@@ -98,6 +101,8 @@ fun WorldSheet(world: World, model: OrbitViewModel, onDismiss: () -> Unit) {
                 SuggestionChip(onClick = {}, label = { Text("定員 ${world.capacity} 人") })
             }
             Text(world.description.ifBlank { "このワールドの説明はありません。" }, style = MaterialTheme.typography.bodyLarge)
+            ExpandableDetails("${model.ownProfile.id}/world/${world.id}", listOf(DetailField("ワールドID", world.id)), model.demo,
+                load = { model.resolveWorldDetails(world) })
             FilledTonalButton(onClick = { model.toggleWorld(world) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                 Icon(if (world.id in model.savedWorlds) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, null, Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp)); Text(if (world.id in model.savedWorlds) "保存済み · タップで解除" else "このワールドを保存")

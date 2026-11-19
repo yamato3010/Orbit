@@ -173,6 +173,10 @@ fun InstanceSheet(group: FriendInstance, model: OrbitViewModel, onDismiss: () ->
             if (model.demo) item { Text("サンプルのインスタンスです。人数はデモデータです。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (linkFailed) item { Text("リンクを開けるアプリが見つかりませんでした。", color = MaterialTheme.colorScheme.error) }
             data.world?.let { world -> item { OutlinedButton(onClick = { onWorld(world) }, Modifier.fillMaxWidth()) { Text("ワールドの詳細") } } }
+            item {
+                ExpandableDetails("${model.ownProfile.id}/instance/${group.address.key}",
+                    listOf(DetailField("インスタンスID", group.address.instanceId), DetailField("ワールドID", group.address.worldId)) + data.details?.extra.orEmpty(), model.demo)
+            }
             item { Text("ここにいるフレンド", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             items(group.friends, key = { it.id }) { friend -> FriendRow(friend, friend.id in model.savedFriends, { onFriend(friend) }, { model.toggleFriend(friend.id) }) }
         }
