@@ -19,8 +19,9 @@ class ExpandableDetailsTest {
     @Test fun fetchesOnlyOnExpansionRetriesFailureAndRetainsSuccessfulResult() {
         var calls = 0
         compose.setContent { MaterialTheme {
-            ExpandableDetails("test", listOf(DetailField("ワールドID", "wrld_test")), false) {
+            ExpandableDetails("test", listOf(DetailField("ワールドID", "wrld_test")), false) { force ->
                 calls++
+                assertEquals(calls > 1, force)
                 if (calls == 1) throw IOException("test failure")
                 listOf(DetailField("訪問数", "123"))
             }
@@ -34,6 +35,8 @@ class ExpandableDetailsTest {
         compose.onNodeWithText("詳しい情報").performClick()
         compose.onNodeWithText("123").assertIsDisplayed()
         compose.runOnIdle { assertEquals(2, calls) }
+        compose.onNodeWithText("追加情報を更新").performClick()
+        compose.runOnIdle { assertEquals(3, calls) }
     }
     @Test fun closingDuringFetchDoesNotStartAnotherRequestOnReopening() {
         var calls = 0

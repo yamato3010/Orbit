@@ -12,6 +12,8 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.sync.Mutex
@@ -46,9 +48,14 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     private var refreshJob: Job? = null
     private var worldJob: Job? = null
     private var generation = 0
-    private val worldMutex = Mutex()
-    private val instanceMutex = Mutex()
-    private val instanceCache = mutableMapOf<String, InstanceDetails>()
+    val displayedInstances = mutableStateMapOf<String, InstanceDetails>()
+    val instanceVersions = mutableStateMapOf<String, Int>()
+    private val watchedInstances = mutableMapOf<String, Int>()
+    fun watchInstance(key: String) { watchedInstances[key] = (watchedInstances[key] ?: 0) + 1 }
+    fun unwatchInstance(key: String) { val count = (watchedInstances[key] ?: 0) - 1; if (count <= 0) watchedInstances.remove(key) else watchedInstances[key] = count }
+    private val snapshots = SnapshotSchedule { android.os.SystemClock.elapsedRealtime() }
+    private var ownProfileJob: Job? = null
+    private var ownProfileLoading = false
     private val worldCache = mutableStateMapOf<String, World>()
     private val friendProfileMutex = Mutex()
     private val friendProfiles = mutableStateMapOf<String, Pair<FriendProfile, Long>>()
@@ -62,13 +69,17 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun enrichFriendProfile(id: String) = friendProfileMutex.withLock {
         if (demo || friends.none { it.id == id }) return@withLock
         val cached = friendProfiles[id]
-        if (cached != null && System.currentTimeMillis() - cached.second < 300_000) return@withLock
+        if (cached != null && System.currentTimeMillis() - cached.second < CachePolicy.PROFILE) return@withLock
         val epoch = generation
-        try {
-            val profile = api.friendProfile(id)
-            if (epoch == generation && friends.any { it.id == id }) friendProfiles[id] = profile to System.currentTimeMillis()
-        } catch (e: Exception) { if (e is CancellationException) throw e }
-        delay(1000) // スクロール中にリクエストが集中しないよう、追加のプロフィール情報は間隔を空けて順番に取得する。
+        // スクロールで対象の行が画面外に出ても、この取得が完了するまで次の取得を開始しない。
+        // 順番待ちの行は通常どおりキャンセルできる。ログアウト時や終了時は、リポジトリがアカウント単位の処理をキャンセルする。
+        withContext(NonCancellable) {
+            try {
+                val profile = api.friendProfile(id)
+                if (epoch == generation && friends.any { it.id == id }) friendProfiles[id] = profile to System.currentTimeMillis()
+            } catch (e: Exception) { if (e is CancellationException) throw e }
+            delay(1000)
+        }
     }
     var ownProfile by mutableStateOf(demoProfile); private set
     var notifications by mutableStateOf(demoNotifications()); private set
@@ -80,7 +91,8 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     var realtimeEnabled by mutableStateOf(prefs.getBoolean("realtime", true)); private set
     var realtimeState by mutableStateOf(RealtimeState.Demo); private set
     private var profileRevision = 0
-    private var foreground = false
+    var appForeground by mutableStateOf(false); private set
+    private var connectionGeneration = 0
     private var pipelineJob: Job? = null
     private var reconcileJob: Job? = null
     private var notificationJob: Job? = null
@@ -90,16 +102,17 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     val unreadCount get() = notifications.count { !it.seen }
     fun dismissSocialMessage() { socialMessage = null }
     fun setForeground(value: Boolean) {
-        if (foreground == value) return
-        foreground = value
+        if (appForeground == value) return
+        appForeground = value
         restartPipeline()
-        if (value && !demo) { refresh(); refreshNotifications(); refreshProfile() }
+        if (value && !demo && !realtimeEnabled) reconcileSnapshots()
     }
     fun setRealtime(value: Boolean) { realtimeEnabled = value; prefs.edit().putBoolean("realtime", value).apply(); restartPipeline() }
     private fun restartPipeline() {
+        connectionGeneration++
         pipelineJob?.cancel(); reconcileJob?.cancel()
         realtimeState = if (demo) RealtimeState.Demo else RealtimeState.Paused
-        if (demo || !foreground || !realtimeEnabled) return
+        if (demo || !appForeground || !realtimeEnabled) return
         val epoch = generation
         pipelineJob = viewModelScope.launch {
             var retry = 1000L
@@ -110,18 +123,34 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
                     api.pipeline().collect { signal ->
                         if (epoch != generation) return@collect
                         when (signal) {
-                            PipelineSignal.Connected -> { realtimeState = RealtimeState.Connected; retry = 1000; refresh(); refreshNotifications(); refreshProfile() }
+                            PipelineSignal.Connected -> {
+                                realtimeState = RealtimeState.Connected; retry = 1000
+                                val connection = ++connectionGeneration
+                                // イベントの購読を開始してからスナップショットを取得し、取得中に届いたイベントは記録しておく。
+                                viewModelScope.launch {
+                                    refreshJob?.join(); notificationJob?.join(); ownProfileJob?.join()
+                                    if (epoch == generation && connection == connectionGeneration && appForeground && realtimeState == RealtimeState.Connected) reconcileSnapshots(force = true)
+                                }
+                            }
                             is PipelineSignal.Disconnected -> if (signal.code == 401 || signal.code == 403) rejected = true
                             is PipelineSignal.Event -> when (val event = signal.value) {
                                 is PipelineEvent.FriendChanged -> {
+                                    val previous = friends.firstOrNull { it.id == event.update.id }
+                                    val cachedProfile = friendProfiles[event.update.id]?.first
+                                    if (event.update.kind == "friend-delete" ||
+                                        (event.update.rank != null && event.update.rank != (cachedProfile?.rank ?: previous?.trustRank)) ||
+                                        (event.update.pronouns != null && event.update.pronouns != (cachedProfile?.pronouns ?: previous?.pronouns)))
+                                        api.invalidateFriendProfile(event.update.id)
                                     if (event.update.kind == "friend-delete") friendProfiles.remove(event.update.id)
                                     else friendProfiles[event.update.id]?.let { (profile, time) ->
                                         friendProfiles[event.update.id] = profile.copy(rank = event.update.rank ?: profile.rank,
                                             pronouns = event.update.pronouns ?: profile.pronouns) to time
                                     }
                                     if (busy) friendJournal.add(event.update)
-                                    val fresh = applyFriendUpdate(friends, event.update)
-                                    recordChanges(fresh); friends = fresh; instanceCache.clear(); lastSync = System.currentTimeMillis()
+                                    val before = friends
+                                    val fresh = applyFriendUpdate(before, event.update)
+                                    recordChanges(fresh); friends = fresh; lastSync = System.currentTimeMillis()
+                                    invalidateChangedInstances(before, fresh)
                                 }
                                 is PipelineEvent.NotificationChanged -> changeNotification(event.change)
                                 is PipelineEvent.OwnChanged -> {
@@ -130,7 +159,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
                                         name = event.name ?: ownProfile.name, location = event.location ?: ownProfile.location, imageUrls = event.images ?: ownProfile.imageUrls)
                                     displayName = ownProfile.name
                                 }
-                                PipelineEvent.Resync -> { refresh(); refreshNotifications() }
+                                PipelineEvent.Resync -> refreshNotifications()
                                 PipelineEvent.SessionError -> rejected = true
                             }
                         }
@@ -145,18 +174,44 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
                 delay(retry); retry = (retry * 2).coerceAtMost(60000)
             }
         }
-        reconcileJob = viewModelScope.launch { while (true) { delay(120000); refresh(); refreshNotifications(); refreshProfile() } }
+        reconcileJob = viewModelScope.launch {
+            delay(2000) // 通常は先にソケットが接続される。接続に失敗した場合も HTTP で取得する。
+            while (true) { reconcileSnapshots(); delay(30_000) }
+        }
     }
     private class PipelineAuthException : IOException()
+    private fun reconcileSnapshots(force: Boolean = false) {
+        if (demo || !appForeground) return
+        val connected = realtimeState == RealtimeState.Connected
+        if (force || snapshots.due(SnapshotResource.Friends, connected)) refreshFriends()
+        if (force || snapshots.due(SnapshotResource.Notifications, connected)) refreshNotifications()
+        if (force || snapshots.due(SnapshotResource.OwnProfile, connected)) refreshProfile()
+    }
+    private suspend fun invalidateChangedInstances(before: List<Friend>, after: List<Friend>, forceKeys: Set<String> = emptySet()) {
+        val old = before.associateBy { it.id }
+        val fresh = after.associateBy { it.id }
+        val keys = (old.keys + fresh.keys).flatMap { affectedInstances(old[it], fresh[it]) }.toSet() + forceKeys
+        for (key in keys) {
+            api.invalidateInstance(key)
+            instanceVersions[key] = (instanceVersions[key] ?: 0) + 1
+        }
+    }
     private fun refreshProfile() {
+        if (ownProfileLoading || demo) return
+        ownProfileLoading = true
+        snapshots.started(SnapshotResource.OwnProfile)
         val epoch = generation
         val revision = profileRevision
-        viewModelScope.launch { try { val value = api.currentUser().toOwnProfile(); if (epoch == generation && revision == profileRevision) { ownProfile = value; displayName = value.name } }
-            catch (e: Exception) { if (e is CancellationException) throw e } }
+        ownProfileJob = viewModelScope.launch {
+            try { val value = api.currentUser().toOwnProfile(); if (epoch == generation && revision == profileRevision) { ownProfile = value; displayName = value.name } }
+            catch (e: Exception) { if (e is CancellationException) throw e }
+            finally { if (epoch == generation) ownProfileLoading = false }
+        }
     }
     fun refreshNotifications() {
         if (demo || notificationLoading) return
         val epoch = generation
+        snapshots.started(SnapshotResource.Notifications)
         notificationLoading = true; notificationError = null; notificationJournal.clear()
         notificationJob = viewModelScope.launch {
             try {
@@ -186,7 +241,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
         socialAction(when(action) { "accept" -> "フレンド申請を承認しました"; "hide" -> "通知を非表示にしました"; else -> "既読にしました" }) {
             if (!demo) api.notificationAction(item.id, action)
             changeNotification(if (action == "see") NotificationChange.Seen(item.id) else NotificationChange.Remove(item.id))
-            if (action == "accept") refresh()
+            if (action == "accept") refreshFriends()
         }
     }
     suspend fun loadInviteMessages(action: InviteAction): List<InviteMessage> =
@@ -270,7 +325,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     fun setDynamic(value: Boolean) { dynamicColor = value; prefs.edit().putBoolean("dynamic", value).apply() }
     fun dismissError() { error = null }
     fun openLogin() { authError = null; twoFactorMethods = emptyList(); loginOpen = true }
-    fun closeLogin() { if (!authBusy) { loginOpen = false; twoFactorMethods = emptyList(); api.clearSession() } }
+    fun closeLogin() { if (!authBusy) { loginOpen = false; twoFactorMethods = emptyList(); viewModelScope.launch { api.clearSession() } } }
     fun login(username: String, password: String) = authenticate { api.login(username, password) }
     fun verify(code: String, method: String) = authenticate { api.verify(code, method) }
     private fun authenticate(block: suspend () -> JSONObject) {
@@ -290,28 +345,32 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     }
     private fun acceptUser(user: JSONObject) {
         if (!user.optString("id").startsWith("usr_")) throw IOException("ユーザー情報を取得できませんでした。再ログインしてください。")
-        generation++; refreshJob?.cancel(); worldJob?.cancel(); notificationJob?.cancel(); actionJob?.cancel(); socialBusy = false; notificationLoading = false
+        generation++; refreshJob?.cancel(); worldJob?.cancel(); notificationJob?.cancel(); actionJob?.cancel(); ownProfileJob?.cancel(); ownProfileLoading = false; socialBusy = false; notificationLoading = false
         accountId = user.getString("id"); demo = false; displayName = user.optString("displayName")
-        friends = emptyList(); worlds = emptyList(); activities = readHistory(); worldCache.clear(); instanceCache.clear(); friendProfiles.clear()
+        friends = emptyList(); worlds = emptyList(); activities = readHistory(); worldCache.clear(); instanceVersions.clear(); displayedInstances.clear(); friendProfiles.clear(); snapshots.clear()
         runCatching {
             val cached = JSONArray(prefs.getString("world_cache_$accountId", "[]"))
             for (i in 0 until cached.length()) { val w = cached.getJSONObject(i).toWorld(); worldCache[w.id] = w }
         }
         busy = false; loadBookmarks(); loginOpen = false; twoFactorMethods = emptyList(); lastSync = null
-        ownProfile = user.toOwnProfile(); notifications = emptyList(); loadPresets(); restartPipeline(); refreshNotifications()
-        refresh()
+        ownProfile = user.toOwnProfile(); notifications = emptyList(); loadPresets(); restartPipeline()
+        if (!realtimeEnabled) reconcileSnapshots(force = true)
     }
-    fun refresh() {
+    fun refresh() = refreshFriends(forceInstances = true)
+    private fun refreshFriends(forceInstances: Boolean = false) {
         if (busy) return
         if (demo) { lastSync = System.currentTimeMillis(); return }
+        snapshots.started(SnapshotResource.Friends)
         val epoch = generation
         refreshJob = viewModelScope.launch {
             busy = true; error = null; friendJournal.clear()
             try {
                 val snapshot = api.friends()
                 if (epoch != generation) return@launch
+                val before = friends
                 val fresh = friendJournal.fold(snapshot, ::applyFriendUpdate)
-                instanceCache.clear(); recordChanges(fresh); friends = fresh; lastSync = System.currentTimeMillis(); profileRefresh++
+                recordChanges(fresh); friends = fresh; lastSync = System.currentTimeMillis(); profileRefresh++
+                invalidateChangedInstances(before, fresh, if (forceInstances) watchedInstances.keys.toSet() else emptySet())
                 if (worlds.isEmpty()) searchWorlds(worldQuery)
             } catch (e: Exception) { if (e is CancellationException) throw e; error = friendlyError(e) }
             finally { if (epoch == generation) busy = false }
@@ -331,49 +390,49 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
             finally { if (epoch == generation) worldLoading = false }
         }
     }
-    suspend fun resolveFriendDetails(friend: Friend): List<DetailField> {
+    suspend fun resolveFriendDetails(friend: Friend, force: Boolean = false): List<DetailField> {
         if (demo) return demoFriendDetails(friend.id)
         val epoch = generation
-        val result = api.friendDetails(friend.id)
+        val result = api.friendDetails(friend.id, force)
+        val profile = api.friendProfile(friend.id) // キャッシュ済みの HTTP レスポンスを再利用し、表示中のランクと代名詞も更新する。
         if (epoch != generation) throw CancellationException("Account changed")
+        friendProfiles[friend.id] = profile to System.currentTimeMillis()
         return result
     }
-    suspend fun resolveWorldDetails(world: World): List<DetailField> {
+    suspend fun resolveWorldDetails(world: World, force: Boolean = false): List<DetailField> {
         if (demo) return demoWorldDetails(world)
         val epoch = generation
-        val result = api.worldDetails(world.id)
+        val result = api.worldDetails(world.id, force)
         if (epoch != generation) throw CancellationException("Account changed")
         return result
     }
-    suspend fun resolveWorld(id: String): World? = worldMutex.withLock {
-        worldCache[id]?.let { return@withLock it }
-        DemoData.worlds.firstOrNull { demo && it.id == id }?.let { return@withLock it }
-        if (demo || !id.startsWith("wrld_")) return@withLock null
+    suspend fun resolveWorld(id: String, force: Boolean = false): World? {
+        if (demo) return DemoData.worlds.firstOrNull { it.id == id }
+        if (!id.startsWith("wrld_")) return null
         val epoch = generation
-        val world = api.world(id)
-        if (epoch != generation) return@withLock null
+        val world = api.world(id, force)
+        if (epoch != generation) return null
         worldCache[id] = world
-        world
+        return world
     }
-    suspend fun resolveInstance(address: InstanceLocation): InstanceDetails? = instanceMutex.withLock {
-        if (demo) return@withLock DemoData.instanceDetails(address)?.let { details -> details.copy(extra = listOf(
+    suspend fun resolveInstance(address: InstanceLocation, force: Boolean = false, maxAgeMs: Long = CachePolicy.INSTANCE): InstanceDetails? {
+        if (demo) return DemoData.instanceDetails(address)?.let { details -> details.copy(extra = listOf(
             DetailField("稼働中", "はい"), DetailField("満員", "いいえ"), DetailField("プラットフォーム別人数", "PC：${details.occupants} 人\nAndroid：0 人"))) }
-        instanceCache[address.key]?.let { return@withLock it }
         val epoch = generation
-        val details = api.instance(address)
-        if (epoch != generation) return@withLock null
-        if (details != null) instanceCache[address.key] = details
-        details
+        val details = api.instance(address, force, maxAgeMs)
+        if (epoch != generation) return null
+        if (details != null) displayedInstances[address.key] = details else displayedInstances.remove(address.key)
+        return details
     }
     fun logout() {
         if (authBusy) return
         viewModelScope.launch {
-            authBusy = true; generation++; refreshJob?.cancel(); worldJob?.cancel(); notificationJob?.cancel(); actionJob?.cancel(); socialBusy = false; notificationLoading = false
+            authBusy = true; generation++; refreshJob?.cancel(); worldJob?.cancel(); notificationJob?.cancel(); actionJob?.cancel(); ownProfileJob?.cancel(); ownProfileLoading = false; socialBusy = false; notificationLoading = false
             pipelineJob?.cancel(); reconcileJob?.cancel()
             try { api.logout() } catch (e: Exception) { if (e is CancellationException) throw e }
             finally {
                 demo = true; accountId = "demo"; displayName = "旅するあなた"; friends = DemoData.friends
-                worlds = DemoData.worlds; activities = DemoData.activities(); worldCache.clear(); instanceCache.clear(); friendProfiles.clear(); loadBookmarks()
+                worlds = DemoData.worlds; activities = DemoData.activities(); worldCache.clear(); instanceVersions.clear(); displayedInstances.clear(); friendProfiles.clear(); snapshots.clear(); loadBookmarks()
                 ownProfile = demoProfile; notifications = demoNotifications(); notificationError = null; socialMessage = null; loadPresets(); restartPipeline()
                 busy = false; worldLoading = false; authBusy = false; lastSync = null; worldQuery = ""
             }
@@ -411,7 +470,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
         } }
     }.getOrDefault(emptyList())
     override fun onCleared() {
-        api.imageLoader.shutdown()
+        api.close()
         super.onCleared()
     }
     private fun friendlyError(e: Exception) = if (e is ApiException) e.message!! else "通信できませんでした。ネットワーク接続を確認して、もう一度お試しください。"

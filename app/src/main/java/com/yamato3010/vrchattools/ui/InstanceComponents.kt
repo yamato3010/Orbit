@@ -28,29 +28,45 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.yamato3010.vrchattools.data.*
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 
 private data class InstanceData(val world: World?, val details: InstanceDetails?, val loading: Boolean, val errors: List<String>, val retry: () -> Unit)
 
 @Composable
-private fun rememberInstanceData(group: FriendInstance, model: OrbitViewModel): InstanceData {
-    var retry by remember(group.address.key) { mutableIntStateOf(0) }
-    var world by remember(group.address.worldId, model.demo) { mutableStateOf(model.worlds.firstOrNull { it.id == group.address.worldId }) }
-    var details by remember(group.address.key, model.demo, model.lastSync) { mutableStateOf<InstanceDetails?>(null) }
-    var loading by remember(group.address.key) { mutableStateOf(true) }
-    var worldError by remember(group.address.key) { mutableStateOf<String?>(null) }
-    var instanceError by remember(group.address.key) { mutableStateOf<String?>(null) }
-    LaunchedEffect(group.address.key, model.demo, model.lastSync, retry) {
+private fun rememberInstanceData(group: FriendInstance, model: OrbitViewModel, focused: Boolean = false): InstanceData {
+    val identity = "${model.ownProfile.id}/${group.address.key}"
+    DisposableEffect(identity) {
+        model.watchInstance(group.address.key)
+        onDispose { model.unwatchInstance(group.address.key) }
+    }
+    var tick by remember(identity) { mutableIntStateOf(0) }
+    var handledRetry by remember(identity) { mutableIntStateOf(0) }
+    var retry by remember(identity) { mutableIntStateOf(0) }
+    var world by remember(group.address.worldId, model.ownProfile.id, model.demo) { mutableStateOf(model.worlds.firstOrNull { it.id == group.address.worldId }) }
+    var details by remember(identity, model.demo) { mutableStateOf<InstanceDetails?>(null) }
+    var loading by remember(identity) { mutableStateOf(true) }
+    var worldError by remember(identity) { mutableStateOf<String?>(null) }
+    var instanceError by remember(identity) { mutableStateOf<String?>(null) }
+    val interval = if (focused) 30_000L else 120_000L
+    LaunchedEffect(identity, model.appForeground, model.demo, interval) {
+        if (model.demo || !model.appForeground) return@LaunchedEffect
+        while (true) { delay(interval); tick++ }
+    }
+    LaunchedEffect(identity, model.demo, model.appForeground, model.instanceVersions[group.address.key], tick, retry) {
+        if (!model.appForeground && !model.demo) return@LaunchedEffect
+        val force = retry != handledRetry
+        handledRetry = retry
         loading = true; worldError = null; instanceError = null
         try {
             try {
-                world = model.resolveWorld(group.address.worldId)
+                world = model.resolveWorld(group.address.worldId, force)
                 if (world == null) worldError = instanceLoadError(InstanceResource.World, null)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 worldError = instanceLoadError(InstanceResource.World, e)
             }
             try {
-                details = model.resolveInstance(group.address)
+                details = model.resolveInstance(group.address, force, interval)
                 if (details == null) instanceError = instanceLoadError(InstanceResource.Instance, null)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -58,7 +74,7 @@ private fun rememberInstanceData(group: FriendInstance, model: OrbitViewModel): 
             }
         } finally { loading = false }
     }
-    return InstanceData(world, details, loading, listOfNotNull(worldError, instanceError)) { retry++ }
+    return InstanceData(world, model.displayedInstances[group.address.key] ?: details, loading, listOfNotNull(worldError, instanceError)) { retry++ }
 }
 
 @Composable
@@ -141,7 +157,7 @@ fun LazyListScope.instanceItems(overview: SocialOverview, model: OrbitViewModel,
 
 @Composable
 fun InstanceSheet(group: FriendInstance, model: OrbitViewModel, onDismiss: () -> Unit, onFriend: (Friend) -> Unit, onWorld: (World) -> Unit) {
-    val data = rememberInstanceData(group, model)
+    val data = rememberInstanceData(group, model, focused = true)
     val context = LocalContext.current
     var linkFailed by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = MaterialTheme.colorScheme.surface) {

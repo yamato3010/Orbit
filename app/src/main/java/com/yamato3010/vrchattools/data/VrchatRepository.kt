@@ -6,6 +6,10 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import coil.ImageLoader
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import okhttp3.Cookie
 import okhttp3.CookieJar
@@ -67,7 +71,13 @@ internal class SessionCookies(context: Context) : CookieJar {
 }
 
 class ApiException(val code: Int, message: String) : IOException(message)
-class VrchatRepository internal constructor(context: Context, clientOverride: okhttp3.OkHttpClient? = null) {
+class VrchatRepository internal constructor(context: Context, clientOverride: okhttp3.OkHttpClient? = null,
+    private val clock: () -> Long = { android.os.SystemClock.elapsedRealtime() }) {
+    private val resourcesScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val resources = RequestCache<String>(resourcesScope, clock, failureTtl = {
+        if (it is ApiException && it.code in setOf(403, 404)) CachePolicy.FAILURE else 0L
+    })
+    private val backoff = ReadBackoff(clock)
     private val jar = SessionCookies(context)
     private val client = clientOverride ?: vrchatClient(jar)
     val imageLoader: ImageLoader = ImageLoader.Builder(context.applicationContext)
@@ -84,19 +94,47 @@ class VrchatRepository internal constructor(context: Context, clientOverride: ok
             .header("Accept", "application/json")
         if (authorization != null) builder.header("Authorization", authorization)
         if (method != "GET") builder.method(method, (json?.toString() ?: "{}").toRequestBody("application/json".toMediaType()))
-        client.newCall(builder.build()).execute().use { response ->
-            val body = response.body?.string().orEmpty()
-            if (!response.isSuccessful) throw ApiException(response.code, when (response.code) {
-                401 -> "認証できませんでした。ログイン情報または認証コードを確認してください。"
-                403 -> "アクセスできません。VRChat側のアカウント状態を確認してください。"
-                429 -> "リクエストが多すぎます。少し待ってからお試しください。"
-                else -> "VRChatに接続できませんでした（${response.code}）。"
+        if (method == "GET") backoff.check()
+        suspendCancellableCoroutine { continuation ->
+            val call = client.newCall(builder.build())
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : okhttp3.Callback {
+                override fun onFailure(call: okhttp3.Call, e: IOException) { if (continuation.isActive) continuation.resumeWith(Result.failure(e)) }
+                override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+                    val result = runCatching { response.use {
+                        if (!it.isSuccessful) {
+                            val failure = ApiException(it.code, when (it.code) {
+                                401 -> "認証できませんでした。ログイン情報または認証コードを確認してください。"
+                                403 -> "アクセスできません。VRChat側のアカウント状態を確認してください。"
+                                429 -> "リクエストが多すぎます。少し待ってからお試しください。"
+                                else -> "VRChatに接続できませんでした（${it.code}）。"
+                            })
+                            val retry = it.header("Retry-After")
+                            val wait = retry?.toLongOrNull()?.coerceIn(1, 86_400)?.times(1000)
+                                ?: retry?.let { date -> runCatching {
+                                    java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", java.util.Locale.US).parse(date)?.time
+                                        ?.minus(System.currentTimeMillis())
+                                }.getOrNull() } ?: 60_000L
+                            backoff.record(failure, wait)
+                            throw failure
+                        }
+                        it.body?.string().orEmpty()
+                    } }
+                    if (continuation.isActive) continuation.resumeWith(result)
+                }
             })
-            body
         }
     }
+    private suspend fun resource(path: String, ttl: Long, force: Boolean = false): String =
+        resources.get(path, ttl, force) { request(path) }
+    private fun userPath(id: String) = "users/${URLEncoder.encode(id, "UTF-8")}"
+    private fun worldPath(id: String) = "worlds/${URLEncoder.encode(id, "UTF-8")}"
+    suspend fun invalidateFriendProfile(id: String) = resources.invalidate(userPath(id))
+    suspend fun invalidateInstance(key: String) = resources.invalidate("instance:$key")
+    suspend fun clearResourceCache() { resources.clear(); backoff.clear() }
+    fun close() { resourcesScope.cancel(); imageLoader.shutdown() }
     suspend fun login(username: String, password: String): JSONObject {
-        jar.clear()
+        clearResourceCache(); jar.clear()
         return JSONObject(request("auth/user", authorization = Credentials.basic(
             URLEncoder.encode(username, "UTF-8").replace("+", "%20"), URLEncoder.encode(password, "UTF-8").replace("+", "%20"))))
     }
@@ -120,19 +158,20 @@ class VrchatRepository internal constructor(context: Context, clientOverride: ok
         return result.distinctBy { it.id }
     }
     suspend fun worlds(query: String = ""): List<World> {
-        val search = if (query.isBlank()) "sort=heat&order=descending" else "search=${URLEncoder.encode(query, "UTF-8")}&sort=relevance"
-        val array = JSONArray(request("worlds?n=24&$search"))
+        val normalized = query.trim()
+        val search = if (normalized.isBlank()) "sort=heat&order=descending" else "search=${URLEncoder.encode(normalized, "UTF-8")}&sort=relevance"
+        val array = JSONArray(resource("worlds?n=24&$search", CachePolicy.SEARCH))
         return (0 until array.length()).map { array.getJSONObject(it).toWorld() }
     }
-    suspend fun world(id: String) = JSONObject(request("worlds/${URLEncoder.encode(id, "UTF-8")}")).toWorld()
+    suspend fun world(id: String, force: Boolean = false) = JSONObject(resource(worldPath(id), CachePolicy.WORLD, force)).toWorld()
     suspend fun friendProfile(id: String): FriendProfile {
-        val user = JSONObject(request("users/${URLEncoder.encode(id, "UTF-8")}")).toFriend()
+        val user = JSONObject(resource(userPath(id), CachePolicy.PROFILE)).toFriend()
         return FriendProfile(user.trustRank, user.pronouns)
     }
-    suspend fun friendDetails(id: String) = JSONObject(request("users/${URLEncoder.encode(id, "UTF-8")}")).friendDetailFields()
-    suspend fun worldDetails(id: String) = JSONObject(request("worlds/${URLEncoder.encode(id, "UTF-8")}")).worldDetailFields()
-    suspend fun instance(address: InstanceLocation): InstanceDetails? {
-        val body = request(instanceApiUrl(address))
+    suspend fun friendDetails(id: String, force: Boolean = false) = JSONObject(resource(userPath(id), CachePolicy.PROFILE, force)).friendDetailFields()
+    suspend fun worldDetails(id: String, force: Boolean = false) = JSONObject(resource(worldPath(id), CachePolicy.WORLD, force)).worldDetailFields()
+    suspend fun instance(address: InstanceLocation, force: Boolean = false, maxAgeMs: Long = CachePolicy.INSTANCE): InstanceDetails? {
+        val body = resources.get("instance:${address.key}", maxAgeMs, force) { request(instanceApiUrl(address)) }
         if (body.trim() == "null") return null
         val data = JSONObject(body)
         val access = when (data.optString("type")) {
@@ -194,6 +233,6 @@ class VrchatRepository internal constructor(context: Context, clientOverride: ok
         return JSONObject(request("users/${segment(userId)}", "PUT", JSONObject()
             .put("status", status.apiValue).put("statusDescription", description))).toOwnProfile()
     }
-    suspend fun logout() { try { request("logout", "PUT") } finally { jar.clear() } }
-    fun clearSession() = jar.clear()
+    suspend fun logout() { try { request("logout", "PUT") } finally { clearResourceCache(); jar.clear() } }
+    suspend fun clearSession() { clearResourceCache(); jar.clear() }
 }

@@ -27,7 +27,7 @@ import com.yamato3010.vrchattools.data.DetailField
 import kotlinx.coroutines.CancellationException
 
 @Composable
-fun ExpandableDetails(resourceKey: String, initial: List<DetailField>, demo: Boolean, load: (suspend () -> List<DetailField>)? = null) {
+fun ExpandableDetails(resourceKey: String, initial: List<DetailField>, demo: Boolean, load: (suspend (force: Boolean) -> List<DetailField>)? = null) {
     var expanded by rememberSaveable(resourceKey) { mutableStateOf(false) }
     var loaded by remember(resourceKey) { mutableStateOf<List<DetailField>?>(null) }
     var loading by remember(resourceKey) { mutableStateOf(false) }
@@ -35,9 +35,9 @@ fun ExpandableDetails(resourceKey: String, initial: List<DetailField>, demo: Boo
     var requested by remember(resourceKey) { mutableStateOf(expanded) }
     var attempt by remember(resourceKey) { mutableIntStateOf(0) }
     LaunchedEffect(resourceKey, requested, attempt) {
-        if (!requested || loaded != null || load == null) return@LaunchedEffect
+        if (!requested || (loaded != null && attempt == 0) || load == null) return@LaunchedEffect
         loading = true; error = null
-        try { loaded = load() }
+        try { loaded = load(attempt > 0) }
         catch (e: Exception) {
             if (e is CancellationException) throw e
             error = (e as? ApiException)?.message ?: "追加情報を取得できませんでした。接続を確認して再試行してください。"
@@ -73,6 +73,8 @@ fun ExpandableDetails(resourceKey: String, initial: List<DetailField>, demo: Boo
                             } }
                         }
                     }
+                    if (loaded != null && load != null && error == null)
+                        TextButton(onClick = { attempt++ }, enabled = !loading) { Text("追加情報を更新") }
                     if (fields.isEmpty() && !loading && error == null) Text("追加情報はありません。", style = MaterialTheme.typography.bodySmall)
                 }
             }
