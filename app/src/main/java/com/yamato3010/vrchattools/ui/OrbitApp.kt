@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
@@ -92,16 +93,21 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
             }
         }
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+        val direction = LocalLayoutDirection.current
+        val bottomInset = padding.calculateBottomPadding()
+        // ナビゲーションバーは表示領域に重ね、下部の余白はスクロールするコンテンツにだけ入れる。
+        Box(Modifier.fillMaxSize().padding(start = padding.calculateStartPadding(direction),
+            top = padding.calculateTopPadding(), end = padding.calculateEndPadding(direction))
+            .consumeWindowInsets(padding), contentAlignment = Alignment.TopCenter) {
             AnimatedContent(targetState = if (notifications) 5 else if (settings) 4 else page, modifier = Modifier.widthIn(max = 840.dp).fillMaxSize(),
                 transitionSpec = { (fadeIn() + slideInHorizontally { it / 18 }) togetherWith fadeOut() }, label = "navigation") { current ->
                 when (current) {
-                    0 -> HomeScreen(model, onPage = { page = it }, onFriend = { friendId = it.id }, onWorld = { selectedWorld = it }, onInstance = { selectedInstance = it.address.key })
-                    1 -> FriendsScreen(model, onFriend = { friendId = it.id }, onInstance = { selectedInstance = it.address.key })
-                    2 -> WorldsScreen(model, onWorld = { selectedWorld = it })
-                    3 -> ActivityScreen(model, onFriend = { friendId = it })
-                    5 -> NotificationsScreen(model)
-                    else -> SettingsScreen(model, appState.settingsScroll)
+                    0 -> HomeScreen(model, onPage = { page = it }, onFriend = { friendId = it.id }, onWorld = { selectedWorld = it }, onInstance = { selectedInstance = it.address.key }, bottomInset = bottomInset)
+                    1 -> FriendsScreen(model, onFriend = { friendId = it.id }, onInstance = { selectedInstance = it.address.key }, bottomInset = bottomInset)
+                    2 -> WorldsScreen(model, onWorld = { selectedWorld = it }, bottomInset = bottomInset)
+                    3 -> ActivityScreen(model, onFriend = { friendId = it }, bottomInset = bottomInset)
+                    5 -> NotificationsScreen(model, bottomInset)
+                    else -> SettingsScreen(model, appState.settingsScroll, bottomInset)
                 }
             }
         }
@@ -120,10 +126,10 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
 }
 
 @Composable
-private fun HomeScreen(model: OrbitViewModel, onPage: (Int) -> Unit, onFriend: (Friend) -> Unit, onWorld: (World) -> Unit, onInstance: (FriendInstance) -> Unit) {
+private fun HomeScreen(model: OrbitViewModel, onPage: (Int) -> Unit, onFriend: (Friend) -> Unit, onWorld: (World) -> Unit, onInstance: (FriendInstance) -> Unit, bottomInset: Dp) {
     val overview = groupFriendsByInstance(model.socialFriends)
     val online = model.friends.filter { it.status != Presence.Offline }
-    LazyColumn(contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 10.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+    LazyColumn(contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 10.dp, bottom = 20.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("YOUR LITTLE VRCHAT COMPANION", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall, letterSpacing = 1.7.sp)
@@ -232,13 +238,13 @@ private fun RefreshAction(model: OrbitViewModel) {
 }
 
 @Composable
-private fun FriendsScreen(model: OrbitViewModel, onFriend: (Friend) -> Unit, onInstance: (FriendInstance) -> Unit) {
+private fun FriendsScreen(model: OrbitViewModel, onFriend: (Friend) -> Unit, onInstance: (FriendInstance) -> Unit, bottomInset: Dp) {
     var query by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableIntStateOf(0) }
     var instanceView by rememberSaveable { mutableStateOf(false) }
     val filtered = filterFriends(model.socialFriends, query, filter, model.savedFriends)
     val overview = groupFriendsByInstance(filtered)
-    LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { PageHeading("GOOD COMPANY", "フレンド", "つながりを、もう少し近くに。") { RefreshAction(model) } }
         item {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -268,13 +274,13 @@ private fun FriendsScreen(model: OrbitViewModel, onFriend: (Friend) -> Unit, onI
 }
 
 @Composable
-private fun WorldsScreen(model: OrbitViewModel, onWorld: (World) -> Unit) {
+private fun WorldsScreen(model: OrbitViewModel, onWorld: (World) -> Unit, bottomInset: Dp) {
     var query by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableIntStateOf(0) }
     LaunchedEffect(query, model.demo) { delay(550); if (!model.demo && filter == 0) model.searchWorlds(query) }
     val source = if (filter == 1) model.bookmarkedWorlds() else model.worlds
     val worlds = source.filter { (!model.demo && filter == 0) || it.name.contains(query, true) || it.author.contains(query, true) }
-    LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { PageHeading("A WORLD OF POSSIBILITIES", "ワールド", "お気に入りの場所が、きっと見つかる。") }
         item { SearchBox(query, { query = it }, "ワールドを探す", { model.searchWorlds(query) }) }
         item { FilterChips(listOf("見つける", "保存したワールド"), filter) { filter = it; if (it == 0 && !model.demo) model.searchWorlds(query) } }
@@ -291,12 +297,12 @@ private fun WorldsScreen(model: OrbitViewModel, onWorld: (World) -> Unit) {
 }
 
 @Composable
-private fun ActivityScreen(model: OrbitViewModel, onFriend: (String) -> Unit) {
+private fun ActivityScreen(model: OrbitViewModel, onFriend: (String) -> Unit, bottomInset: Dp) {
     var filter by rememberSaveable { mutableIntStateOf(0) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(60_000); now = System.currentTimeMillis() } }
     val events = model.activities.filter { filter == 0 || if (filter == 1) it.kind in listOf("online", "offline") else it.kind == "world" }
-    LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { PageHeading("LITTLE MOMENTS", "アクティビティ", "みんなの動きを、そっと振り返る。") { RefreshAction(model) } }
         item {
             Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(22.dp)) {
@@ -324,9 +330,9 @@ private fun ActivityScreen(model: OrbitViewModel, onFriend: (String) -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(model: OrbitViewModel, scrollState: androidx.compose.foundation.ScrollState) {
+private fun SettingsScreen(model: OrbitViewModel, scrollState: androidx.compose.foundation.ScrollState, bottomInset: Dp) {
     var confirmLogout by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp, 12.dp, 24.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp, 12.dp, 24.dp, 24.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         PageHeading("MAKE IT YOURS", "あなたのOrbit", "好きな色で、心地よいつながりを。")
         Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.primaryContainer) {
             Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

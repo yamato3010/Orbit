@@ -24,20 +24,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.yamato3010.vrchattools.data.*
 import kotlinx.coroutines.CancellationException
 
 private data class SocialTarget(val action: InviteAction, val userId: String, val name: String, val notificationId: String? = null)
 
 @Composable
-fun NotificationsScreen(model: OrbitViewModel) {
+fun NotificationsScreen(model: OrbitViewModel, bottomInset: Dp = 0.dp) {
     var unread by rememberSaveable { mutableStateOf(false) }
     var target by remember { mutableStateOf<SocialTarget?>(null) }
     var accept by remember { mutableStateOf<SocialNotification?>(null) }
     val context = LocalContext.current
     var linkError by remember { mutableStateOf(false) }
     LaunchedEffect(model.demo) { model.refreshNotifications() }
-    LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
