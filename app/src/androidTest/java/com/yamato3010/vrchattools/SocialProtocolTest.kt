@@ -31,7 +31,10 @@ class SocialProtocolTest {
         val event = parsePipelineEvent(JSONObject().put("type", "friend-location").put("content", payload.toString()).toString()) as PipelineEvent.FriendChanged
         assertEquals("usr_test", event.update.id)
         assertEquals("traveling", event.update.location)
-        assertNull(event.update.images); assertNull(event.update.rank)
+        assertNull(event.update.images); assertNull(event.update.rank); assertNull(event.update.pronouns)
+        payload.getJSONObject("user").put("pronouns", JSONObject.NULL)
+        val cleared = parsePipelineEvent(JSONObject().put("type", "friend-update").put("content", payload.toString()).toString()) as PipelineEvent.FriendChanged
+        assertEquals("", cleared.update.pronouns)
         assertNull(parsePipelineEvent("malformed"))
         assertNull(parsePipelineEvent("{\"type\":\"unknown\"}"))
     }

@@ -50,8 +50,25 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     private val instanceMutex = Mutex()
     private val instanceCache = mutableMapOf<String, InstanceDetails>()
     private val worldCache = mutableStateMapOf<String, World>()
+    private val friendProfileMutex = Mutex()
+    private val friendProfiles = mutableStateMapOf<String, Pair<FriendProfile, Long>>()
+    var profileRefresh by mutableIntStateOf(0); private set
     val socialFriends: List<Friend> get() = friends.map { friend ->
-        worldCache[friend.location.substringBefore(':')]?.let { friend.copy(worldName = it.name) } ?: friend
+        val world = worldCache[friend.location.substringBefore(':')]
+        val profile = friendProfiles[friend.id]?.first
+        friend.copy(worldName = world?.name ?: friend.worldName, trustRank = profile?.rank ?: friend.trustRank,
+            pronouns = profile?.pronouns ?: friend.pronouns)
+    }
+    suspend fun enrichFriendProfile(id: String) = friendProfileMutex.withLock {
+        if (demo || friends.none { it.id == id }) return@withLock
+        val cached = friendProfiles[id]
+        if (cached != null && System.currentTimeMillis() - cached.second < 300_000) return@withLock
+        val epoch = generation
+        try {
+            val profile = api.friendProfile(id)
+            if (epoch == generation && friends.any { it.id == id }) friendProfiles[id] = profile to System.currentTimeMillis()
+        } catch (e: Exception) { if (e is CancellationException) throw e }
+        delay(1000) // スクロール中にリクエストが集中しないよう、追加のプロフィール情報は間隔を空けて順番に取得する。
     }
     var ownProfile by mutableStateOf(demoProfile); private set
     var notifications by mutableStateOf(demoNotifications()); private set
@@ -97,6 +114,11 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
                             is PipelineSignal.Disconnected -> if (signal.code == 401 || signal.code == 403) rejected = true
                             is PipelineSignal.Event -> when (val event = signal.value) {
                                 is PipelineEvent.FriendChanged -> {
+                                    if (event.update.kind == "friend-delete") friendProfiles.remove(event.update.id)
+                                    else friendProfiles[event.update.id]?.let { (profile, time) ->
+                                        friendProfiles[event.update.id] = profile.copy(rank = event.update.rank ?: profile.rank,
+                                            pronouns = event.update.pronouns ?: profile.pronouns) to time
+                                    }
                                     if (busy) friendJournal.add(event.update)
                                     val fresh = applyFriendUpdate(friends, event.update)
                                     recordChanges(fresh); friends = fresh; instanceCache.clear(); lastSync = System.currentTimeMillis()
@@ -270,7 +292,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
         if (!user.optString("id").startsWith("usr_")) throw IOException("ユーザー情報を取得できませんでした。再ログインしてください。")
         generation++; refreshJob?.cancel(); worldJob?.cancel(); notificationJob?.cancel(); actionJob?.cancel(); socialBusy = false; notificationLoading = false
         accountId = user.getString("id"); demo = false; displayName = user.optString("displayName")
-        friends = emptyList(); worlds = emptyList(); activities = readHistory(); worldCache.clear(); instanceCache.clear()
+        friends = emptyList(); worlds = emptyList(); activities = readHistory(); worldCache.clear(); instanceCache.clear(); friendProfiles.clear()
         runCatching {
             val cached = JSONArray(prefs.getString("world_cache_$accountId", "[]"))
             for (i in 0 until cached.length()) { val w = cached.getJSONObject(i).toWorld(); worldCache[w.id] = w }
@@ -289,7 +311,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
                 val snapshot = api.friends()
                 if (epoch != generation) return@launch
                 val fresh = friendJournal.fold(snapshot, ::applyFriendUpdate)
-                instanceCache.clear(); recordChanges(fresh); friends = fresh; lastSync = System.currentTimeMillis()
+                instanceCache.clear(); recordChanges(fresh); friends = fresh; lastSync = System.currentTimeMillis(); profileRefresh++
                 if (worlds.isEmpty()) searchWorlds(worldQuery)
             } catch (e: Exception) { if (e is CancellationException) throw e; error = friendlyError(e) }
             finally { if (epoch == generation) busy = false }
@@ -351,7 +373,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
             try { api.logout() } catch (e: Exception) { if (e is CancellationException) throw e }
             finally {
                 demo = true; accountId = "demo"; displayName = "旅するあなた"; friends = DemoData.friends
-                worlds = DemoData.worlds; activities = DemoData.activities(); worldCache.clear(); instanceCache.clear(); loadBookmarks()
+                worlds = DemoData.worlds; activities = DemoData.activities(); worldCache.clear(); instanceCache.clear(); friendProfiles.clear(); loadBookmarks()
                 ownProfile = demoProfile; notifications = demoNotifications(); notificationError = null; socialMessage = null; loadPresets(); restartPipeline()
                 busy = false; worldLoading = false; authBusy = false; lastSync = null; worldQuery = ""
             }

@@ -9,7 +9,7 @@ import org.json.JSONObject
 /** パイプラインの更新に含まれるフィールドだけを、保持しているフレンド情報に上書きする。 */
 data class FriendUpdate(val id: String, val kind: String, val name: String? = null, val status: String? = null,
     val location: String? = null, val worldName: String? = null, val images: List<String>? = null,
-    val bio: String? = null, val platform: String? = null, val rank: TrustRank? = null)
+    val bio: String? = null, val platform: String? = null, val rank: TrustRank? = null, val pronouns: String? = null)
 fun applyFriendUpdate(friends: List<Friend>, update: FriendUpdate): List<Friend> {
     if (update.kind == "friend-delete") return friends.filterNot { it.id == update.id }
     val old = friends.firstOrNull { it.id == update.id }
@@ -30,7 +30,7 @@ fun applyFriendUpdate(friends: List<Friend>, update: FriendUpdate): List<Friend>
         worldName = update.worldName ?: old?.worldName?.takeIf { old.location.substringBefore(':') == location.substringBefore(':') }.orEmpty(),
         image = update.images?.firstOrNull() ?: if (update.images == null) old?.image.orEmpty() else "",
         imageFallbacks = update.images?.drop(1) ?: old?.imageFallbacks.orEmpty(),
-        bio = update.bio ?: old?.bio.orEmpty(), platform = update.platform ?: old?.platform ?: "PC", trustRank = update.rank ?: old?.trustRank ?: TrustRank.Unknown)
+        bio = update.bio ?: old?.bio.orEmpty(), platform = update.platform ?: old?.platform ?: "PC", trustRank = update.rank ?: old?.trustRank ?: TrustRank.Unknown, pronouns = update.pronouns ?: old?.pronouns.orEmpty())
     return friends.filterNot { it.id == update.id } + fresh
 }
 
@@ -66,7 +66,8 @@ internal fun parsePipelineEvent(text: String): PipelineEvent? = runCatching {
             PipelineEvent.FriendChanged(FriendUpdate(id, type, user.textOrNull("displayName"), user.textOrNull("status"),
                 data.textOrNull("location") ?: user.textOrNull("location"), data.optJSONObject("world")?.textOrNull("name"), images,
                 user.textOrNull("statusDescription"), platform?.let { when (it) { "android" -> "Android"; "ios" -> "iOS"; "web" -> "Web"; else -> "PC" } },
-                tags?.let { TrustRank.fromTags((0 until it.length()).map { i -> it.optString(i) }) }))
+                tags?.takeIf { it.length() > 0 }?.let { TrustRank.fromTags((0 until it.length()).map { i -> it.optString(i) }) },
+                if (user.has("pronouns")) user.profilePronouns() else null))
         }
         type == "user-update" || type == "user-location" -> {
             val user = data.optJSONObject("user") ?: JSONObject()

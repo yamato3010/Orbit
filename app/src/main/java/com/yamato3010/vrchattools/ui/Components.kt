@@ -89,8 +89,15 @@ fun FriendRow(friend: Friend, saved: Boolean, onClick: () -> Unit, onSave: () ->
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(friend.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, false))
-                if (showTrustRank) Text(friend.trustRank.label, style = MaterialTheme.typography.labelSmall, color = rankColor, maxLines = 1)
                 if (friend.status == Presence.JoinMe) Icon(Icons.Rounded.WavingHand, "参加歓迎", Modifier.size(15.dp), tint = friend.status.color())
+            }
+            if (showTrustRank) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(friend.trustRank.label, style = MaterialTheme.typography.labelSmall, color = rankColor, maxLines = 1)
+                if (friend.pronouns.isNotBlank()) {
+                    Text("·", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(friend.pronouns, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                }
             }
             Text(friend.locationLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }

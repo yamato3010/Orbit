@@ -39,6 +39,7 @@ fun FriendSheet(friend: Friend, model: OrbitViewModel, onDismiss: () -> Unit, on
     var world by remember(friend.location) { mutableStateOf<World?>(null) }
     var loadError by remember { mutableStateOf(false) }
     var linkError by remember { mutableStateOf(false) }
+    LaunchedEffect(friend.id, model.ownProfile.id, model.profileRefresh) { model.enrichFriendProfile(friend.id) }
     val worldId = friend.location.substringBefore(":")
     LaunchedEffect(worldId) {
         try { world = model.resolveWorld(worldId) }
@@ -48,6 +49,8 @@ fun FriendSheet(friend: Friend, model: OrbitViewModel, onDismiss: () -> Unit, on
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, bottom = 36.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Avatar(friend, 92.dp)
             Text(friend.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(listOf(friend.trustRank.label, friend.pronouns).filter { it.isNotBlank() }.joinToString(" · "),
+                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Surface(shape = CircleShape, color = friend.status.color().copy(alpha = .14f)) {
                 Text(friend.status.label, Modifier.padding(12.dp, 6.dp), color = friend.status.color(), style = MaterialTheme.typography.labelLarge)
             }

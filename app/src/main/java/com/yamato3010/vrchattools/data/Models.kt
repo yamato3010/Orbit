@@ -16,7 +16,7 @@ enum class Presence(val label: String) {
     }
 }
 data class Friend(val id: String, val name: String, val status: Presence, val location: String,
-    val worldName: String = "", val image: String = "", val bio: String = "", val platform: String = "PC", val trustRank: TrustRank = TrustRank.Unknown, val imageFallbacks: List<String> = emptyList()) {
+    val worldName: String = "", val image: String = "", val bio: String = "", val platform: String = "PC", val trustRank: TrustRank = TrustRank.Unknown, val imageFallbacks: List<String> = emptyList(), val pronouns: String = "") {
     val imageUrls: List<String> get() = imageUrls(image, *imageFallbacks.toTypedArray())
     val locationLabel: String get() = when {
         status == Presence.Offline -> "また会えるのを楽しみに"
@@ -46,7 +46,7 @@ fun filterFriends(friends: List<Friend>, query: String, filter: Int, saved: Set<
         }
     }.sortedBy { it.status == Presence.Offline }
 
-internal fun JSONObject.toFriend(): Friend {
+internal fun JSONObject.toFriend(limited: Boolean = false): Friend {
     val location = optString("location", "offline")
     val tags = optJSONArray("tags")?.let { array ->
         (0 until array.length()).mapNotNull { array.opt(it) as? String }
@@ -56,7 +56,7 @@ internal fun JSONObject.toFriend(): Friend {
         location, image = images.firstOrNull().orEmpty(), imageFallbacks = images.drop(1),
         bio = optString("statusDescription"),
         platform = if (optString("last_platform").contains("android")) "Android" else "PC",
-        trustRank = TrustRank.fromTags(tags))
+        trustRank = if (limited && tags.isNullOrEmpty()) TrustRank.Unknown else TrustRank.fromTags(tags), pronouns = profilePronouns())
 }
 internal fun JSONObject.toWorld(): World {
     val images = imageUrls(optString("thumbnailImageUrl"), optString("imageUrl"))
@@ -67,3 +67,7 @@ internal fun JSONObject.toWorld(): World {
 
 internal val profileImageFields = listOf("userIcon", "iconUrl", "profilePicOverride", "currentAvatarThumbnailImageUrl", "currentAvatarImageUrl")
 internal fun JSONObject.profileImageUrls(): List<String> = imageUrls(*profileImageFields.map { optString(it) }.toTypedArray())
+
+internal fun JSONObject.profilePronouns(): String = (opt("pronouns") as? String)?.trim()?.takeUnless { it == "null" }.orEmpty()
+
+data class FriendProfile(val rank: TrustRank, val pronouns: String)

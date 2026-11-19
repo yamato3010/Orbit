@@ -5,10 +5,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SocialReducerTest {
-    private val friend = Friend("usr_test", "Test", Presence.JoinMe, "wrld_a:123", "World A", "https://example.com/icon", "hi", "Android", TrustRank.Trusted, listOf("https://example.com/avatar"))
+    private val friend = Friend("usr_test", "Test", Presence.JoinMe, "wrld_a:123", "World A", "https://example.com/icon", "hi", "Android", TrustRank.Trusted, listOf("https://example.com/avatar"), pronouns = "they/them")
     @Test fun partialUpdatesPreserveImagesRankLocationAndDescription() {
         val next = applyFriendUpdate(listOf(friend), FriendUpdate(friend.id, "friend-update", status = "busy")).single()
         assertEquals(friend.copy(status = Presence.Busy), next)
+    }
+    @Test fun pronounsCanBeUpdatedAndExplicitlyCleared() {
+        val changed = applyFriendUpdate(listOf(friend), FriendUpdate(friend.id, "friend-update", pronouns = "she/her")).single()
+        assertEquals("she/her", changed.pronouns)
+        assertEquals("", applyFriendUpdate(listOf(changed), FriendUpdate(friend.id, "friend-update", pronouns = "")).single().pronouns)
     }
     @Test fun movementClearsStaleWorldNameButPreservesProfile() {
         val next = applyFriendUpdate(listOf(friend), FriendUpdate(friend.id, "friend-location", location = "private")).single()

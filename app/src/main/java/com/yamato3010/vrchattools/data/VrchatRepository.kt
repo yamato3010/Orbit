@@ -113,7 +113,7 @@ class VrchatRepository internal constructor(context: Context, clientOverride: ok
             var offset = 0
             do {
                 val page = JSONArray(request("auth/user/friends?offline=$offline&n=100&offset=$offset"))
-                for (i in 0 until page.length()) result.add(page.getJSONObject(i).toFriend())
+                for (i in 0 until page.length()) result.add(page.getJSONObject(i).toFriend(limited = true))
                 offset += page.length()
             } while (page.length() == 100)
         }
@@ -125,6 +125,10 @@ class VrchatRepository internal constructor(context: Context, clientOverride: ok
         return (0 until array.length()).map { array.getJSONObject(it).toWorld() }
     }
     suspend fun world(id: String) = JSONObject(request("worlds/${URLEncoder.encode(id, "UTF-8")}")).toWorld()
+    suspend fun friendProfile(id: String): FriendProfile {
+        val user = JSONObject(request("users/${URLEncoder.encode(id, "UTF-8")}")).toFriend()
+        return FriendProfile(user.trustRank, user.pronouns)
+    }
     suspend fun friendDetails(id: String) = JSONObject(request("users/${URLEncoder.encode(id, "UTF-8")}")).friendDetailFields()
     suspend fun worldDetails(id: String) = JSONObject(request("worlds/${URLEncoder.encode(id, "UTF-8")}")).worldDetailFields()
     suspend fun instance(address: InstanceLocation): InstanceDetails? {

@@ -106,7 +106,7 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
             }
         }
     }
-    model.friends.firstOrNull { it.id == friendId }?.let { friend ->
+    model.socialFriends.firstOrNull { it.id == friendId }?.let { friend ->
         FriendSheet(friend, model, onDismiss = { friendId = null }, onWorld = { friendId = null; selectedWorld = it })
     }
     selectedWorld?.let { world -> WorldSheet(world, model, onDismiss = { selectedWorld = null }) }
@@ -258,7 +258,10 @@ private fun FriendsScreen(model: OrbitViewModel, onFriend: (Friend) -> Unit, onI
             item { Text("${overview.instances.size} インスタンス", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
             instanceItems(overview, model, onFriend, onInstance, includeOffline = true)
         } else {
-            items(filtered, key = { it.id }) { friend -> FriendRow(friend, friend.id in model.savedFriends, { onFriend(friend) }, { model.toggleFriend(friend.id) }, showTrustRank = true) }
+            items(filtered, key = { it.id }) { friend ->
+                LaunchedEffect(friend.id, model.ownProfile.id, model.profileRefresh) { model.enrichFriendProfile(friend.id) }
+                FriendRow(friend, friend.id in model.savedFriends, { onFriend(friend) }, { model.toggleFriend(friend.id) }, showTrustRank = true)
+            }
         }
         if (filtered.isEmpty()) item { EmptyState("フレンドが見つかりません", "検索やフィルターを変えてみてください。") }
     }

@@ -58,7 +58,7 @@ internal fun JSONObject.instanceDetailFields(): List<DetailField> = DetailFields
 }.items
 
 internal fun demoFriendDetails(id: String) = JSONObject().put("id", id).put("bio", "ワールド巡りと写真が好きです。気軽にお話ししましょう！")
-    .put("date_joined", "2022-04-01").put("pronouns", "they/them").put("bioLinks", JSONArray(listOf("https://vrchat.com/"))).friendDetailFields()
+    .put("date_joined", "2022-04-01").put("pronouns", DemoData.friends.firstOrNull { it.id == id }?.pronouns.orEmpty()).put("bioLinks", JSONArray(listOf("https://vrchat.com/"))).friendDetailFields()
 internal fun demoWorldDetails(world: World) = JSONObject().put("id", world.id).put("authorId", "usr_demo_creator")
     .put("releaseStatus", "public").put("version", 12).put("recommendedCapacity", 16).put("capacity", world.capacity)
     .put("visits", 12840).put("favorites", 256).put("created_at", "2024-04-01T12:00:00Z").put("updated_at", "2026-11-01T09:00:00Z")

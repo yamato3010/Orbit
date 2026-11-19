@@ -32,9 +32,15 @@ class FriendParsingTest {
 
     @Test fun parsesRankTagsFromApiResponseAndDistinguishesMissingTags() {
         val user = JSONObject().put("id", "usr_test").put("displayName", "Test").put("location", "private").put("status", "active")
+        assertEquals("", user.toFriend().pronouns)
+        user.put("pronouns", " they/them ")
+        assertEquals("they/them", user.toFriend().pronouns)
+        user.put("pronouns", JSONObject.NULL)
+        assertEquals("", user.toFriend().pronouns)
         assertEquals(TrustRank.Unknown, user.toFriend().trustRank)
         user.put("tags", org.json.JSONArray())
         assertEquals(TrustRank.Visitor, user.toFriend().trustRank)
+        assertEquals(TrustRank.Unknown, user.toFriend(limited = true).trustRank)
         user.put("tags", org.json.JSONArray(listOf("system_trust_known", "system_trust_trusted")))
         assertEquals(TrustRank.Known, user.toFriend().trustRank)
         user.put("tags", org.json.JSONArray(listOf("system_trust_veteran")))
