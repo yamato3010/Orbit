@@ -336,11 +336,34 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
             finally { authBusy = false }
         }
     }
+    private fun cancelAccountRequests() {
+        generation++
+        refreshJob?.cancel()
+        worldJob?.cancel()
+        notificationJob?.cancel()
+        actionJob?.cancel()
+        ownProfileJob?.cancel()
+        ownProfileLoading = false
+        socialBusy = false
+        notificationLoading = false
+    }
+
+    private fun clearAccountCaches() {
+        worldCache.clear()
+        instanceVersions.clear()
+        displayedInstances.clear()
+        friendProfiles.clear()
+        snapshots.clear()
+    }
+
     private fun acceptUser(user: JSONObject) {
         if (!user.optString("id").startsWith("usr_")) throw IOException("ユーザー情報を取得できませんでした。再ログインしてください。")
-        generation++; refreshJob?.cancel(); worldJob?.cancel(); notificationJob?.cancel(); actionJob?.cancel(); ownProfileJob?.cancel(); ownProfileLoading = false; socialBusy = false; notificationLoading = false
+        cancelAccountRequests()
         accountId = user.getString("id"); demo = false; displayName = user.optString("displayName")
-        friends = emptyList(); worlds = emptyList(); activities = readHistory(); worldCache.clear(); instanceVersions.clear(); displayedInstances.clear(); friendProfiles.clear(); snapshots.clear()
+        friends = emptyList()
+        worlds = emptyList()
+        activities = readHistory()
+        clearAccountCaches()
         worldCache.putAll(localData.loadWorldCache(accountId))
         busy = false; loadBookmarks(); loginOpen = false; twoFactorMethods = emptyList(); lastSync = null
         ownProfile = user.toOwnProfile(); notifications = emptyList(); presets = localData.loadPresets(accountId); restartPipeline()
@@ -417,12 +440,16 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     fun logout() {
         if (authBusy) return
         viewModelScope.launch {
-            authBusy = true; generation++; refreshJob?.cancel(); worldJob?.cancel(); notificationJob?.cancel(); actionJob?.cancel(); ownProfileJob?.cancel(); ownProfileLoading = false; socialBusy = false; notificationLoading = false
+            authBusy = true
+            cancelAccountRequests()
             pipelineJob?.cancel(); reconcileJob?.cancel()
             try { api.logout() } catch (e: Exception) { if (e is CancellationException) throw e }
             finally {
                 demo = true; accountId = "demo"; displayName = "旅するあなた"; friends = DemoData.friends
-                worlds = DemoData.worlds; activities = DemoData.activities(); worldCache.clear(); instanceVersions.clear(); displayedInstances.clear(); friendProfiles.clear(); snapshots.clear(); loadBookmarks()
+                worlds = DemoData.worlds
+                activities = DemoData.activities()
+                clearAccountCaches()
+                loadBookmarks()
                 ownProfile = demoProfile; notifications = demoNotifications(); notificationError = null; socialMessage = null; presets = localData.loadPresets(accountId); restartPipeline()
                 busy = false; worldLoading = false; authBusy = false; lastSync = null; worldQuery = ""
             }
