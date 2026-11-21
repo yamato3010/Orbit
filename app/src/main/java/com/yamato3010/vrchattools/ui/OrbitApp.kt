@@ -140,7 +140,12 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
 private fun HomeScreen(model: OrbitViewModel, onPage: (Int) -> Unit, onFriend: (Friend) -> Unit, onWorld: (World) -> Unit, onInstance: (FriendInstance) -> Unit, bottomInset: Dp) {
     val overview = groupFriendsByInstance(model.socialFriends)
     val online = model.friends.filter { it.status != Presence.Offline }
-    LazyColumn(contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 10.dp, bottom = 20.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+    RefreshableLazyColumn(
+        isRefreshing = model.busy,
+        onRefresh = model::refresh,
+        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 10.dp, bottom = 20.dp + bottomInset),
+        verticalArrangement = Arrangement.spacedBy(22.dp)
+    ) {
         item {
             Text("ダッシュボード", style = MaterialTheme.typography.headlineLarge)
         }
@@ -316,7 +321,12 @@ private fun FriendsScreen(model: OrbitViewModel, onFriend: (Friend) -> Unit, onI
     var instanceView by rememberSaveable { mutableStateOf(false) }
     val filtered = filterFriends(model.socialFriends, query, filter, model.savedFriends)
     val overview = groupFriendsByInstance(filtered)
-    LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    RefreshableLazyColumn(
+        isRefreshing = model.busy,
+        onRefresh = model::refresh,
+        contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp + bottomInset),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         item { PageHeading("フレンド") { RefreshAction(model) } }
         item {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -397,7 +407,12 @@ private fun ActivityScreen(model: OrbitViewModel, onFriend: (String) -> Unit, bo
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(60_000); now = System.currentTimeMillis() } }
     val events = model.activities.filter { filter == 0 || if (filter == 1) it.kind in listOf("online", "offline") else it.kind == "world" }
-    LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    RefreshableLazyColumn(
+        isRefreshing = model.busy,
+        onRefresh = model::refresh,
+        contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp + bottomInset),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         item { PageHeading("アクティビティ") { RefreshAction(model) } }
         item {
             Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(22.dp)) {

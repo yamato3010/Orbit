@@ -9,7 +9,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,7 +37,12 @@ fun NotificationsScreen(model: OrbitViewModel, bottomInset: Dp = 0.dp) {
     val context = LocalContext.current
     var linkError by remember { mutableStateOf(false) }
     LaunchedEffect(model.demo) { model.refreshNotifications() }
-    LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    RefreshableLazyColumn(
+        isRefreshing = model.notificationLoading,
+        onRefresh = model::refreshNotifications,
+        contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp + bottomInset),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
