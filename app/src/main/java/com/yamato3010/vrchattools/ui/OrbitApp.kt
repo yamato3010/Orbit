@@ -1,4 +1,7 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+    androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class
+)
 
 package com.yamato3010.vrchattools.ui
 
@@ -6,7 +9,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -41,8 +45,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class Destination(val label: String, val icon: ImageVector) {
-    Home("ホーム", Icons.Outlined.Home), Friends("フレンド", Icons.Outlined.People),
-    Worlds("ワールド", Icons.Outlined.Public), Activity("ログ", Icons.Outlined.History)
+    Home("ホーム", Icons.Rounded.Home), Friends("フレンド", Icons.Rounded.People),
+    Worlds("ワールド", Icons.Rounded.Public), Activity("ログ", Icons.Rounded.History)
 }
 
 @Composable
@@ -62,7 +66,9 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.AllInclusive, null, Modifier.size(31.dp), tint = MaterialTheme.colorScheme.primary)
+                Surface(shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 6.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                    Icon(Icons.Rounded.AllInclusive, null, Modifier.padding(8.dp).size(24.dp))
+                }
                 Text("Orbit", Modifier.padding(start = 9.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp)
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { statusEditor = true }) { Icon(Icons.Outlined.AccountCircle, "自分のステータス") }
@@ -78,15 +84,20 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
             Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 18.dp, end = 18.dp, bottom = 10.dp, top = 6.dp), contentAlignment = Alignment.Center) {
                 Surface(
                     modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
-                    shape = RoundedCornerShape(30.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .45f)),
-                    tonalElevation = 2.dp
+                    shape = RoundedCornerShape(36.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh
                 ) {
                     NavigationBar(containerColor = Color.Transparent, tonalElevation = 0.dp, windowInsets = WindowInsets(0, 0, 0, 0)) {
                         Destination.entries.forEachIndexed { index, destination ->
                             NavigationBarItem(selected = page == index && !settings && !notifications, onClick = { page = index; settings = false; notifications = false },
-                                icon = { Icon(destination.icon, null) }, label = { Text(destination.label) })
+                                icon = { Icon(destination.icon, null) },
+                                label = { Text(destination.label) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    indicatorColor = MaterialTheme.colorScheme.primary,
+                                    selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                                    selectedTextColor = MaterialTheme.colorScheme.onSurface
+                                )
+                            )
                         }
                     }
                 }
@@ -131,34 +142,15 @@ private fun HomeScreen(model: OrbitViewModel, onPage: (Int) -> Unit, onFriend: (
     val online = model.friends.filter { it.status != Presence.Offline }
     LazyColumn(contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 10.dp, bottom = 20.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("YOUR LITTLE VRCHAT COMPANION", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall, letterSpacing = 1.7.sp)
-                Text("ダッシュボード", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.5).sp)
-                Text("いつもの友達と、まだ知らない世界へ。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            Text("ダッシュボード", style = MaterialTheme.typography.headlineLarge)
         }
         item {
-            Surface(shape = RoundedCornerShape(32.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                Box(Modifier.fillMaxWidth().padding(22.dp)) {
-                    OrbitFlower(Modifier.align(Alignment.TopEnd).padding(top = 2.dp).size(112.dp))
-                    Column(Modifier.fillMaxWidth(.68f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Box(Modifier.size(7.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
-                            Text(if (model.demo) "フレンドのようす · サンプル" else "フレンドのようす", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        }
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Text("${online.size}", style = MaterialTheme.typography.displayLarge, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                            Text(" 人がオンライン", Modifier.padding(bottom = 10.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        }
-                        Text(if (online.isEmpty()) "次の出会いを、楽しみに。" else "今日も、誰かが待っている。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        Spacer(Modifier.height(16.dp))
-                        Button(onClick = { onPage(1) }, contentPadding = PaddingValues(horizontal = 18.dp, vertical = 11.dp)) {
-                            Text("フレンドを見る", style = MaterialTheme.typography.labelLarge)
-                            Spacer(Modifier.width(6.dp)); Icon(Icons.Rounded.ArrowForward, null, Modifier.size(17.dp))
-                        }
-                    }
-                }
-            }
+            FriendOverview(
+                onlineCount = online.size,
+                largestGathering = overview.instances.firstOrNull(),
+                onFriends = { onPage(1) },
+                onInstance = onInstance
+            )
         }
         if (model.demo) item {
             Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(20.dp)).padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -197,14 +189,78 @@ private fun HomeScreen(model: OrbitViewModel, onPage: (Int) -> Unit, onFriend: (
 }
 
 @Composable
-private fun PageHeading(eyebrow: String, title: String, subtitle: String, action: @Composable () -> Unit = {}) {
-    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        Text(eyebrow, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, letterSpacing = 1.8.sp)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-            action()
+private fun FriendOverview(
+    onlineCount: Int,
+    largestGathering: FriendInstance?,
+    onFriends: () -> Unit,
+    onInstance: (FriendInstance) -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val gatheringCount = largestGathering?.friends?.size ?: 0
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("フレンドのようす", style = MaterialTheme.typography.titleMedium)
+        Row(
+            Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                shape = RoundedCornerShape(28.dp, 12.dp, 12.dp, 28.dp),
+                color = colors.primaryContainer
+            ) {
+                Column(Modifier.padding(12.dp)) {
+                    Box(Modifier.size(36.dp), contentAlignment = Alignment.CenterStart) {
+                        Icon(Icons.Rounded.Person, null)
+                    }
+                    Text(onlineCount.toString(), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.ExtraBold)
+                    Text("人がオンライン", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.weight(1f))
+                    TextButton(
+                        onClick = onFriends,
+                        colors = ButtonDefaults.textButtonColors(contentColor = colors.onPrimaryContainer),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                    ) {
+                        Text("フレンドを見る")
+                    }
+                }
+            }
+            Surface(
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                shape = RoundedCornerShape(12.dp, 28.dp, 28.dp, 12.dp),
+                color = colors.tertiaryContainer
+            ) {
+                Column(Modifier.padding(12.dp)) {
+                    Box(Modifier.size(36.dp), contentAlignment = Alignment.CenterStart) {
+                        Icon(Icons.Rounded.People, null)
+                    }
+                    if (largestGathering == null) {
+                        Text("集まっている場所はまだありません", style = MaterialTheme.typography.bodyMedium)
+                    } else {
+                        Text(gatheringCount.toString(), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.ExtraBold)
+                        Text(
+                            if (gatheringCount == 1) "人のフレンドがいます" else "人のフレンドが集まっています！",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(Modifier.weight(1f))
+                        TextButton(
+                            onClick = { onInstance(largestGathering) },
+                            colors = ButtonDefaults.textButtonColors(contentColor = colors.onTertiaryContainer),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                        ) {
+                            Text("場所を見る")
+                        }
+                    }
+                }
+            }
         }
-        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun PageHeading(title: String, action: @Composable () -> Unit = {}) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.headlineLarge)
+        action()
     }
 }
 
@@ -223,8 +279,24 @@ private fun SearchBox(query: String, onQuery: (String) -> Unit, hint: String, on
 private fun FilterChips(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(labels.size) { index ->
-            FilterChip(selected = selected == index, onClick = { onSelect(index) }, label = { Text(labels[index]) }, shape = CircleShape,
-                leadingIcon = if (selected == index) ({ Icon(Icons.Rounded.Check, null, Modifier.size(16.dp)) }) else null)
+            val isSelected = selected == index
+            val corner by animateDpAsState(
+                targetValue = if (isSelected) 12.dp else 24.dp,
+                animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
+                label = "filter corner"
+            )
+            FilterChip(
+                selected = isSelected,
+                onClick = { onSelect(index) },
+                label = { Text(labels[index]) },
+                shape = RoundedCornerShape(corner),
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ),
+                leadingIcon = if (isSelected) ({ Icon(Icons.Rounded.Check, null, Modifier.size(16.dp)) }) else null
+            )
         }
     }
 }
@@ -232,7 +304,7 @@ private fun FilterChips(labels: List<String>, selected: Int, onSelect: (Int) -> 
 @Composable
 private fun RefreshAction(model: OrbitViewModel) {
     IconButton(onClick = model::refresh, enabled = !model.busy) {
-        if (model.busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+        if (model.busy) LoadingIndicator(Modifier.size(28.dp))
         else Icon(Icons.Rounded.Refresh, "最新の情報に更新")
     }
 }
@@ -245,7 +317,7 @@ private fun FriendsScreen(model: OrbitViewModel, onFriend: (Friend) -> Unit, onI
     val filtered = filterFriends(model.socialFriends, query, filter, model.savedFriends)
     val overview = groupFriendsByInstance(filtered)
     LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { PageHeading("GOOD COMPANY", "フレンド", "つながりを、もう少し近くに。") { RefreshAction(model) } }
+        item { PageHeading("フレンド") { RefreshAction(model) } }
         item {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 SegmentedButton(selected = !instanceView, onClick = { instanceView = false }, shape = SegmentedButtonDefaults.itemShape(0, 2)) { Text("個人表示") }
@@ -299,7 +371,7 @@ private fun WorldsScreen(model: OrbitViewModel, onWorld: (World) -> Unit, bottom
         it.name.contains(query, ignoreCase = true) || it.author.contains(query, ignoreCase = true)
     }
     LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { PageHeading("A WORLD OF POSSIBILITIES", "ワールド", "お気に入りの場所が、きっと見つかる。") }
+        item { PageHeading("ワールド") }
         item { SearchBox(query, { query = it }, "ワールドを探す", ::searchRemote) }
         item {
             FilterChips(WorldsTab.entries.map { it.label }, tab.ordinal) { index ->
@@ -326,7 +398,7 @@ private fun ActivityScreen(model: OrbitViewModel, onFriend: (String) -> Unit, bo
     LaunchedEffect(Unit) { while (true) { delay(60_000); now = System.currentTimeMillis() } }
     val events = model.activities.filter { filter == 0 || if (filter == 1) it.kind in listOf("online", "offline") else it.kind == "world" }
     LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { PageHeading("LITTLE MOMENTS", "アクティビティ", "みんなの動きを、そっと振り返る。") { RefreshAction(model) } }
+        item { PageHeading("アクティビティ") { RefreshAction(model) } }
         item {
             Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(22.dp)) {
                 Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -348,7 +420,7 @@ private fun ActivityScreen(model: OrbitViewModel, onFriend: (String) -> Unit, bo
                 }
             }
         }
-        if (events.isEmpty()) item { EmptyState("まだログはありません", "フレンド情報を更新すると、前回からの変化がここに表示されます。", Icons.Outlined.History) }
+        if (events.isEmpty()) item { EmptyState("まだログはありません", "フレンド情報を更新すると、前回からの変化がここに表示されます。", Icons.Rounded.History) }
     }
 }
 
@@ -356,13 +428,13 @@ private fun ActivityScreen(model: OrbitViewModel, onFriend: (String) -> Unit, bo
 private fun SettingsScreen(model: OrbitViewModel, scrollState: androidx.compose.foundation.ScrollState, bottomInset: Dp) {
     var confirmLogout by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp, 12.dp, 24.dp, 24.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        PageHeading("MAKE IT YOURS", "あなたのOrbit", "好きな色で、心地よいつながりを。")
+        PageHeading("あなたのOrbit")
         Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.primaryContainer) {
             Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Outlined.AccountCircle, null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
                 Text(if (model.demo) "まだ見ぬ出会いへ。" else model.displayName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(if (model.demo) "VRChatアカウントをつないで、\nいつものフレンドをここに。" else "VRChatと接続しています", style = MaterialTheme.typography.bodyMedium)
-                if (model.demo) Button(onClick = model::openLogin, enabled = !model.authBusy) { Text(if (model.authBusy) "接続を確認中…" else "VRChatにログイン"); Spacer(Modifier.width(8.dp)); Icon(Icons.Rounded.ArrowForward, null, Modifier.size(18.dp)) }
+                if (model.demo) Button(onClick = model::openLogin, enabled = !model.authBusy) { Text(if (model.authBusy) "接続を確認中…" else "VRChatにログイン"); Spacer(Modifier.width(8.dp)); Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, Modifier.size(18.dp)) }
                 else OutlinedButton(onClick = { confirmLogout = true }, enabled = !model.authBusy) { Text("ログアウト") }
             }
         }

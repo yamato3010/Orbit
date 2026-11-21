@@ -21,7 +21,7 @@ private val DarkColors = darkColorScheme(
     primary = Color(0xFFD0BCFE), onPrimary = Color(0xFF352357),
     primaryContainer = Color(0xFF4C3C6A), onPrimaryContainer = Color(0xFFEBDDFF),
     secondary = Color(0xFFBED39F), secondaryContainer = Color(0xFF39482B), onSecondaryContainer = Color(0xFFDDEFBE),
-    tertiary = Color(0xFFF0B4CD), tertiaryContainer = Color(0xFF633C50),
+    tertiary = Color(0xFFF0B4CD), tertiaryContainer = Color(0xFF633C50), onTertiaryContainer = Color(0xFFFFD9E5),
     background = Color(0xFF15131A), surface = Color(0xFF15131A), onBackground = Color(0xFFE8E1ED), onSurface = Color(0xFFE8E1ED),
     surfaceContainerLowest = Color(0xFF100E15), surfaceContainerLow = Color(0xFF1F1C25),
     surfaceContainer = Color(0xFF27232D), surfaceContainerHigh = Color(0xFF302C36),

@@ -17,7 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -220,24 +219,6 @@ fun WorldCard(world: World, saved: Boolean, onClick: () -> Unit, onSave: () -> U
             }
             WorldPlatformLine(world.platforms)
         }
-    }
-}
-
-@Composable
-fun OrbitFlower(modifier: Modifier = Modifier) {
-    val primary = MaterialTheme.colorScheme.primary
-    val secondary = MaterialTheme.colorScheme.secondaryContainer
-    Canvas(modifier) {
-        val w = size.width; val h = size.height
-        rotate(-18f) {
-            for (i in 0 until 8) rotate(i * 45f) {
-                drawOval(primary.copy(alpha = .2f), androidx.compose.ui.geometry.Offset(w * .34f, h * .01f), androidx.compose.ui.geometry.Size(w * .32f, h * .62f))
-            }
-        }
-        drawCircle(secondary, w * .24f)
-        drawCircle(primary, w * .028f, androidx.compose.ui.geometry.Offset(w * .43f, h * .47f))
-        drawCircle(primary, w * .028f, androidx.compose.ui.geometry.Offset(w * .57f, h * .47f))
-        drawArc(primary, 25f, 130f, false, androidx.compose.ui.geometry.Offset(w * .43f, h * .50f), androidx.compose.ui.geometry.Size(w * .14f, h * .10f), style = androidx.compose.ui.graphics.drawscope.Stroke(w * .018f, cap = StrokeCap.Round))
     }
 }
 
