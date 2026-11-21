@@ -135,24 +135,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
                             }
                             is PipelineSignal.Disconnected -> if (signal.code == 401 || signal.code == 403) rejected = true
                             is PipelineSignal.Event -> when (val event = signal.value) {
-                                is PipelineEvent.FriendChanged -> {
-                                    val previous = friends.firstOrNull { it.id == event.update.id }
-                                    val cachedProfile = friendProfiles[event.update.id]?.first
-                                    if (event.update.kind == "friend-delete" ||
-                                        (event.update.rank != null && event.update.rank != (cachedProfile?.rank ?: previous?.trustRank)) ||
-                                        (event.update.pronouns != null && event.update.pronouns != (cachedProfile?.pronouns ?: previous?.pronouns)))
-                                        api.invalidateFriendProfile(event.update.id)
-                                    if (event.update.kind == "friend-delete") friendProfiles.remove(event.update.id)
-                                    else friendProfiles[event.update.id]?.let { (profile, time) ->
-                                        friendProfiles[event.update.id] = profile.copy(rank = event.update.rank ?: profile.rank,
-                                            pronouns = event.update.pronouns ?: profile.pronouns) to time
-                                    }
-                                    if (busy) friendJournal.add(event.update)
-                                    val before = friends
-                                    val fresh = applyFriendUpdate(before, event.update)
-                                    recordChanges(fresh); friends = fresh; lastSync = System.currentTimeMillis()
-                                    invalidateChangedInstances(before, fresh)
-                                }
+                                is PipelineEvent.FriendChanged -> handleFriendUpdate(event.update)
                                 is PipelineEvent.NotificationChanged -> changeNotification(event.change)
                                 is PipelineEvent.OwnChanged -> {
                                     profileRevision++
@@ -180,6 +163,34 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
             while (true) { reconcileSnapshots(); delay(30_000) }
         }
     }
+    private suspend fun handleFriendUpdate(update: FriendUpdate) {
+        val previous = friends.firstOrNull { it.id == update.id }
+        val cached = friendProfiles[update.id]
+        val deleted = update.kind == "friend-delete"
+        val rankChanged = update.rank != null && update.rank != (cached?.first?.rank ?: previous?.trustRank)
+        val pronounsChanged = update.pronouns != null && update.pronouns != (cached?.first?.pronouns ?: previous?.pronouns)
+        if (deleted || rankChanged || pronounsChanged) api.invalidateFriendProfile(update.id)
+
+        if (deleted) {
+            friendProfiles.remove(update.id)
+        } else {
+            friendProfiles[update.id]?.let { (profile, time) ->
+                friendProfiles[update.id] = profile.copy(
+                    rank = update.rank ?: profile.rank,
+                    pronouns = update.pronouns ?: profile.pronouns
+                ) to time
+            }
+        }
+
+        if (busy) friendJournal.add(update)
+        val current = friends
+        val fresh = applyFriendUpdate(current, update)
+        recordChanges(fresh)
+        friends = fresh
+        lastSync = System.currentTimeMillis()
+        invalidateChangedInstances(current, fresh)
+    }
+
     private class PipelineAuthException : IOException()
     private fun reconcileSnapshots(force: Boolean = false) {
         if (demo || !appForeground) return
