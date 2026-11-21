@@ -45,9 +45,9 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.findByName("githubRelease")
+            // Scoped R8 optimization broke Kotlin class access from OkHttp at startup.
             optimization {
-                enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
+                enable = false
             }
         }
     }
