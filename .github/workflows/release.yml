@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -11,12 +17,15 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: refs/tags/${{ env.RELEASE_TAG }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -27,7 +36,7 @@ jobs:
           set -euo pipefail
           version_name=$(sed -n 's/^versionName=//p' release.properties)
           version_code=$(sed -n 's/^versionCode=//p' release.properties)
-          if ! [[ "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$GITHUB_REF_NAME" == "v$version_name" ]]; then
+          if ! [[ "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$RELEASE_TAG" == "v$version_name" ]]; then
             echo "The release tag must match v<versionName> in release.properties." >&2
             exit 1
           fi
@@ -56,4 +65,4 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "$APK_NAME" --verify-tag --generate-notes --latest
+        run: gh release create "$RELEASE_TAG" "$APK_NAME" --verify-tag --generate-notes --latest
