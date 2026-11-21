@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yamato3010.vrchattools.data.OrbitViewModel
 import org.junit.Assume.assumeTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -14,6 +15,8 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class ThemeSettingsTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+
+    @Before fun openDemo() = compose.completeProvisioningIfNeeded()
 
     @Test fun dynamicColorsCanBeToggledAndRestoredAcrossActivityRecreation() {
         assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)

@@ -3,6 +3,7 @@ package com.yamato3010.vrchattools
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -10,6 +11,8 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class ResourceDetailsFlowTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+
+    @Before fun openDemo() = compose.completeProvisioningIfNeeded()
     private fun expand() = compose.onNodeWithText("詳しい情報").performScrollTo().performClick()
     @Test fun friendDetailsStartCollapsedAndCanBeClosedAgain() {
         compose.onNodeWithText("フレンドを見る").performClick()

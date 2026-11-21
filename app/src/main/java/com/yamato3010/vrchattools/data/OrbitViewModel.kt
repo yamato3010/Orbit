@@ -27,7 +27,10 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("orbit_preferences", 0)
     private val localData = OrbitPreferences(prefs)
     private val api = VrchatRepository(application)
+    private val hasSavedSession = api.hasSession()
     val imageLoader get() = api.imageLoader
+    var needsProvisioning by mutableStateOf(!hasSavedSession && !localData.isProvisioned())
+        private set
     var demo by mutableStateOf(true); private set
     var displayName by mutableStateOf("旅するあなた"); private set
     var friends by mutableStateOf(DemoData.friends); private set
@@ -303,7 +306,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         loadBookmarks(); presets = localData.loadPresets(accountId)
-        if (api.hasSession()) viewModelScope.launch {
+        if (hasSavedSession) viewModelScope.launch {
             authBusy = true
             try { acceptUser(api.currentUser()) }
             catch (e: Exception) {
@@ -346,6 +349,11 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     fun setTheme(mode: Int) { themeMode = mode; prefs.edit().putInt("theme", mode).apply() }
     fun setDynamic(value: Boolean) { dynamicColor = value; prefs.edit().putBoolean("dynamic", value).apply() }
     fun dismissError() { error = null }
+    fun finishProvisioning() {
+        localData.markProvisioned()
+        needsProvisioning = false
+    }
+
     fun openLogin() { authError = null; twoFactorMethods = emptyList(); loginOpen = true }
     fun closeLogin() { if (!authBusy) { loginOpen = false; twoFactorMethods = emptyList(); viewModelScope.launch { api.clearSession() } } }
     fun login(username: String, password: String) = authenticate { api.login(username, password) }
@@ -396,6 +404,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
         worldCache.putAll(localData.loadWorldCache(accountId))
         busy = false; loadBookmarks(); loginOpen = false; twoFactorMethods = emptyList(); lastSync = null
         ownProfile = user.toOwnProfile(); notifications = emptyList(); presets = localData.loadPresets(accountId); restartPipeline()
+        finishProvisioning()
         if (!realtimeEnabled) reconcileSnapshots(force = true)
     }
     fun refresh() = refreshFriends(forceInstances = true)

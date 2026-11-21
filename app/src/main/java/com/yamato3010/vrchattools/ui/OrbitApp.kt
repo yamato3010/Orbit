@@ -54,6 +54,16 @@ private enum class Destination(val label: String, val icon: ImageVector) {
 
 @Composable
 fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
+    if (model.needsProvisioning) {
+        ProvisioningScreen(onLogin = model::openLogin, onDemo = model::finishProvisioning)
+    } else {
+        OrbitMainScreen(model, appState)
+    }
+    if (model.loginOpen) LoginSheet(model)
+}
+
+@Composable
+private fun OrbitMainScreen(model: OrbitViewModel, appState: OrbitAppState) {
     var notifications by appState::notifications
     var statusEditor by appState::statusEditor
     var page by appState::page
@@ -172,7 +182,6 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
             onWorld = { selectedInstance = null; selectedWorld = it })
     }
     if (statusEditor) StatusSheet(model) { statusEditor = false }
-    if (model.loginOpen) LoginSheet(model)
 }
 
 @Composable

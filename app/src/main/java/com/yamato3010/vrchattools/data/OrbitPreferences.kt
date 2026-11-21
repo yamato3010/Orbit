@@ -5,6 +5,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 internal class OrbitPreferences(private val prefs: SharedPreferences) {
+    fun isProvisioned() = prefs.getBoolean("provisioned", false)
+
+    fun markProvisioned() {
+        prefs.edit().putBoolean("provisioned", true).apply()
+    }
+
     fun loadPresets(accountId: String): List<StatusPreset> = runCatching {
         val stored = prefs.getString("presets_$accountId", null) ?: return defaultStatusPresets
         val array = JSONArray(stored)
