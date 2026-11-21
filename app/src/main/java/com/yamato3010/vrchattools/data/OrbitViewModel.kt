@@ -24,6 +24,7 @@ import java.io.IOException
 
 class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("orbit_preferences", 0)
+    private val localData = OrbitPreferences(prefs)
     private val api = VrchatRepository(application)
     val imageLoader get() = api.imageLoader
     var demo by mutableStateOf(true); private set
@@ -280,19 +281,15 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     fun savePreset(name: String, status: SocialStatus, description: String) {
         if (name.isBlank() || !validStatusDescription(description) || presets.size >= 12) return
         presets = presets + StatusPreset(java.util.UUID.randomUUID().toString(), name.take(24), status, description)
-        persistPresets()
+        localData.savePresets(accountId, presets)
     }
-    fun deletePreset(id: String) { presets = presets.filterNot { it.id == id }; persistPresets() }
-    private fun persistPresets() { prefs.edit().putString("presets_$accountId", JSONArray(presets.map {
-        JSONObject().put("id", it.id).put("name", it.name).put("status", it.status.apiValue).put("description", it.description)
-    }).toString()).apply() }
-    private fun loadPresets() {
-        presets = runCatching { val array = JSONArray(prefs.getString("presets_$accountId", null) ?: return@runCatching defaultStatusPresets)
-            (0 until array.length()).map { array.getJSONObject(it).let { p -> StatusPreset(p.getString("id"), p.getString("name"), SocialStatus.from(p.getString("status")), p.getString("description")) } }
-        }.getOrDefault(defaultStatusPresets)
+    fun deletePreset(id: String) {
+        presets = presets.filterNot { it.id == id }
+        localData.savePresets(accountId, presets)
     }
+
     init {
-        loadBookmarks(); loadPresets()
+        loadBookmarks(); presets = localData.loadPresets(accountId)
         if (api.hasSession()) viewModelScope.launch {
             authBusy = true
             try { acceptUser(api.currentUser()) }
@@ -303,24 +300,18 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     private fun loadBookmarks() {
-        savedFriends = prefs.getStringSet("friends_$accountId", if (demo) setOf("demo-1", "demo-3") else emptySet())!!.toSet()
-        savedWorlds = prefs.getStringSet("worlds_$accountId", if (demo) setOf("demo-world-1", "demo-world-3") else emptySet())!!.toSet()
+        savedFriends = localData.loadSavedFriends(accountId)
+        savedWorlds = localData.loadSavedWorlds(accountId)
     }
     fun toggleFriend(id: String) {
         savedFriends = if (id in savedFriends) savedFriends - id else savedFriends + id
-        prefs.edit().putStringSet("friends_$accountId", savedFriends).apply()
+        localData.saveFriends(accountId, savedFriends)
     }
     fun toggleWorld(world: World) {
         val platforms = world.platforms.ifEmpty { worldCache[world.id]?.platforms.orEmpty() }
         worldCache[world.id] = world.copy(platforms = platforms)
         savedWorlds = if (world.id in savedWorlds) savedWorlds - world.id else savedWorlds + world.id
-        prefs.edit().putStringSet("worlds_$accountId", savedWorlds).apply()
-        prefs.edit().putString("world_cache_$accountId", JSONArray(worldCache.values.map { w ->
-            JSONObject().put("id", w.id).put("name", w.name).put("authorName", w.author).put("occupants", w.occupants)
-                .put("capacity", w.capacity).put("thumbnailImageUrl", w.image)
-                .put("imageUrl", w.imageFallbacks.firstOrNull().orEmpty()).put("description", w.description)
-                .put("unityPackages", JSONArray(w.platforms.map { JSONObject().put("platform", it.apiName) }))
-        }).toString()).apply()
+        localData.saveWorlds(accountId, savedWorlds, worldCache.values)
     }
     fun bookmarkedWorlds() = (worlds + worldCache.values).distinctBy { it.id }.filter { it.id in savedWorlds }
     fun setTheme(mode: Int) { themeMode = mode; prefs.edit().putInt("theme", mode).apply() }
@@ -350,12 +341,9 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
         generation++; refreshJob?.cancel(); worldJob?.cancel(); notificationJob?.cancel(); actionJob?.cancel(); ownProfileJob?.cancel(); ownProfileLoading = false; socialBusy = false; notificationLoading = false
         accountId = user.getString("id"); demo = false; displayName = user.optString("displayName")
         friends = emptyList(); worlds = emptyList(); activities = readHistory(); worldCache.clear(); instanceVersions.clear(); displayedInstances.clear(); friendProfiles.clear(); snapshots.clear()
-        runCatching {
-            val cached = JSONArray(prefs.getString("world_cache_$accountId", "[]"))
-            for (i in 0 until cached.length()) { val w = cached.getJSONObject(i).toWorld(); worldCache[w.id] = w }
-        }
+        worldCache.putAll(localData.loadWorldCache(accountId))
         busy = false; loadBookmarks(); loginOpen = false; twoFactorMethods = emptyList(); lastSync = null
-        ownProfile = user.toOwnProfile(); notifications = emptyList(); loadPresets(); restartPipeline()
+        ownProfile = user.toOwnProfile(); notifications = emptyList(); presets = localData.loadPresets(accountId); restartPipeline()
         if (!realtimeEnabled) reconcileSnapshots(force = true)
     }
     fun refresh() = refreshFriends(forceInstances = true)
@@ -435,7 +423,7 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
             finally {
                 demo = true; accountId = "demo"; displayName = "旅するあなた"; friends = DemoData.friends
                 worlds = DemoData.worlds; activities = DemoData.activities(); worldCache.clear(); instanceVersions.clear(); displayedInstances.clear(); friendProfiles.clear(); snapshots.clear(); loadBookmarks()
-                ownProfile = demoProfile; notifications = demoNotifications(); notificationError = null; socialMessage = null; loadPresets(); restartPipeline()
+                ownProfile = demoProfile; notifications = demoNotifications(); notificationError = null; socialMessage = null; presets = localData.loadPresets(accountId); restartPipeline()
                 busy = false; worldLoading = false; authBusy = false; lastSync = null; worldQuery = ""
             }
         }
