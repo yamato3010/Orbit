@@ -46,7 +46,9 @@ jobs:
           fi
           echo "APK_NAME=Orbit-$version_code.apk" >> "$GITHUB_ENV"
       - name: Install Android SDK
-        run: sdkmanager "platforms;android-37.0"
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platforms;android-37.0 build-tools;36.0.0
       - name: Test and build signed APK
         env:
           ORBIT_KEYSTORE_BASE64: ${{ secrets.ORBIT_KEYSTORE_BASE64 }}
