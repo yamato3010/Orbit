@@ -133,7 +133,7 @@ private fun HomeScreen(model: OrbitViewModel, onPage: (Int) -> Unit, onFriend: (
         item {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("YOUR LITTLE VRCHAT COMPANION", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall, letterSpacing = 1.7.sp)
-                Text("さあ、会いにいこう。", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.5).sp)
+                Text("ダッシュボード", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.5).sp)
                 Text("いつもの友達と、まだ知らない世界へ。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }

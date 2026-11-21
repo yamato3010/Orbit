@@ -31,7 +31,7 @@ class OrbitFlowTest {
     }
 
     @Test fun demoNavigationSearchAndDetailFlow() {
-        compose.onNodeWithText("さあ、会いにいこう。").assertIsDisplayed()
+        compose.onNodeWithText("ダッシュボード").assertIsDisplayed()
         compose.onNodeWithText("フレンドを見る").performClick()
         compose.onNodeWithText("8 人のフレンド").assertIsDisplayed()
         compose.onNodeWithText("参加歓迎").performClick()
