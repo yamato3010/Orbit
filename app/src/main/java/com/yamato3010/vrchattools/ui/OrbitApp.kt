@@ -7,9 +7,11 @@ package com.yamato3010.vrchattools.ui
 
 import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.*
+import androidx.compose.animation.core.SeekableTransitionState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.rememberTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -42,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import com.yamato3010.vrchattools.data.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 private enum class Destination(val label: String, val icon: ImageVector) {
@@ -61,7 +64,39 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(model.error) { model.error?.let { snackbar.showSnackbar(it); model.dismissError() } }
     LaunchedEffect(model.socialMessage) { model.socialMessage?.let { snackbar.showSnackbar(it); model.dismissSocialMessage() } }
-    BackHandler(settings || notifications || page != 0) { if (notifications) notifications = false else if (settings) settings = false else page = 0 }
+    val screen = if (notifications) 5 else if (settings) 4 else page
+    val backScreen = if (notifications || settings) page else 0
+    val screenTransition = remember { SeekableTransitionState(screen) }
+    val navigation = rememberTransition(screenTransition, label = "navigation")
+    var predictingBack by remember { mutableStateOf(false) }
+
+    LaunchedEffect(screen, predictingBack) {
+        if (!predictingBack) {
+            if (screenTransition.currentState == screen && screenTransition.targetState != screen) {
+                screenTransition.snapTo(screen)
+            } else {
+                screenTransition.animateTo(screen)
+            }
+        }
+    }
+    PredictiveBackHandler(enabled = screen != backScreen) { events ->
+        try {
+            events.collect { event ->
+                if (!predictingBack) {
+                    predictingBack = true
+                    screenTransition.snapTo(screen)
+                }
+                screenTransition.seekTo(event.progress, backScreen)
+            }
+            when (screen) {
+                5 -> notifications = false
+                4 -> settings = false
+                else -> page = 0
+            }
+        } finally {
+            predictingBack = false
+        }
+    }
     Scaffold(containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
@@ -110,8 +145,8 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
         Box(Modifier.fillMaxSize().padding(start = padding.calculateStartPadding(direction),
             top = padding.calculateTopPadding(), end = padding.calculateEndPadding(direction))
             .consumeWindowInsets(padding), contentAlignment = Alignment.TopCenter) {
-            AnimatedContent(targetState = if (notifications) 5 else if (settings) 4 else page, modifier = Modifier.widthIn(max = 840.dp).fillMaxSize(),
-                transitionSpec = { (fadeIn() + slideInHorizontally { it / 18 }) togetherWith fadeOut() }, label = "navigation") { current ->
+            navigation.AnimatedContent(modifier = Modifier.widthIn(max = 840.dp).fillMaxSize(),
+                transitionSpec = { (fadeIn() + slideInHorizontally { it / 18 }) togetherWith fadeOut() }) { current ->
                 when (current) {
                     0 -> HomeScreen(model, onPage = { page = it }, onFriend = { friendId = it.id }, onWorld = { selectedWorld = it }, onInstance = { selectedInstance = it.address.key }, bottomInset = bottomInset)
                     1 -> FriendsScreen(model, onFriend = { friendId = it.id }, onInstance = { selectedInstance = it.address.key }, bottomInset = bottomInset)

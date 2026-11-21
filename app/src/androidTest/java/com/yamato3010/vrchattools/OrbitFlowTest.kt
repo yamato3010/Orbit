@@ -1,5 +1,6 @@
 package com.yamato3010.vrchattools
 
+import androidx.activity.BackEventCompat
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -10,6 +11,43 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class OrbitFlowTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+
+    @Test fun predictiveBackPreviewsPreviousTabAndCanBeCancelled() {
+        compose.onNodeWithText("フレンドを見る").performClick()
+        compose.onNodeWithContentDescription("設定").performClick()
+
+        val dispatcher = compose.activity.onBackPressedDispatcher
+        val start = BackEventCompat(0f, 500f, 0f, BackEventCompat.EDGE_LEFT)
+        val halfway = BackEventCompat(60f, 500f, 0.5f, BackEventCompat.EDGE_LEFT)
+
+        compose.runOnIdle {
+            dispatcher.dispatchOnBackStarted(start)
+            dispatcher.dispatchOnBackProgressed(halfway)
+        }
+        compose.onNodeWithText("8 人のフレンド").assertExists()
+        compose.onNodeWithContentDescription("設定を閉じる").assertExists()
+
+        compose.runOnIdle { dispatcher.dispatchOnBackCancelled() }
+        compose.onNodeWithText("8 人のフレンド").assertDoesNotExist()
+        compose.onNodeWithContentDescription("設定を閉じる").assertExists()
+
+        compose.runOnIdle {
+            dispatcher.dispatchOnBackStarted(start)
+            dispatcher.dispatchOnBackProgressed(halfway)
+        }
+        compose.onNodeWithText("8 人のフレンド").assertExists()
+        compose.runOnIdle { dispatcher.onBackPressed() }
+        compose.onNodeWithText("8 人のフレンド").assertIsDisplayed()
+        compose.onNodeWithContentDescription("設定").assertExists()
+
+        compose.onNodeWithContentDescription("通知").performClick()
+        compose.runOnIdle { dispatcher.onBackPressed() }
+        compose.onNodeWithText("8 人のフレンド").assertIsDisplayed()
+
+        compose.runOnIdle { dispatcher.onBackPressed() }
+        compose.onNodeWithText("ダッシュボード").assertIsDisplayed()
+        compose.runOnIdle { check(!dispatcher.hasEnabledCallbacks()) }
+    }
 
     @Test fun homeInstanceOpensDetailsWithAvailableMetadata() {
         compose.onNodeWithText("フレンドのいる場所").performScrollTo()
