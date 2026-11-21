@@ -2,11 +2,13 @@
 
 Orbitは、VRChatのフレンドがどこにいるかを確認したり、気になるワールドを探したりできる非公式Androidアプリです。KotlinとJetpack Composeで開発しています。
 
-<img src="docs/screenshots/home.png" alt="Orbitのホーム画面" width="240" /> <img src="docs/screenshots/instances.png" alt="インスタンス別にまとまったフレンド一覧" width="240" />
+<img src="docs/screenshots/home.png" alt="Orbitのダッシュボード" width="240" /> <img src="docs/screenshots/instances.png" alt="インスタンス別にまとまったフレンド一覧" width="240" />
 
 ## 入手方法
 
-Android 7.0以降に対応しています。現在はソースからAPKをビルドして試せます。[ビルド手順](#ビルド)
+Android 7.0以降に対応しています。[GitHub Releases](https://github.com/yamato3010/Orbit/releases) に公開された最新版から `Orbit-<versionCode>.apk` をダウンロードしてインストールできます。[ソースからのビルド手順](#ビルド)もあります。
+
+配布版をインストールした後は、アプリの「設定 → アプリの更新 → 更新を確認」から更新できます。Android 8以降で初めてOrbitから更新する際は、Androidの設定でOrbitからのインストールを許可し、Orbitに戻って「ダウンロードしてインストール」を押してください。最後にAndroidの画面でインストールを確認します。
 
 ## 主な機能
 
@@ -30,7 +32,7 @@ VRChat APIにHTTPSで直接接続します。パスワードと2段階認証コ�
 
 ## ビルド
 
-Android StudioのJBR（JDK 17以上）とAndroid SDK 37を用意し、リポジトリのルートで実行します。
+JDK 25とAndroid SDK 37を用意し、リポジトリのルートで実行します。
 
 ```sh
 ./gradlew :app:assembleDebug
