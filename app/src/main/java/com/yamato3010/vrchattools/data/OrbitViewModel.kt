@@ -21,6 +21,7 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.util.UUID
 
 class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("orbit_preferences", 0)
@@ -33,7 +34,8 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     var worlds by mutableStateOf(DemoData.worlds); private set
     var activities by mutableStateOf(DemoData.activities()); private set
     var savedFriends by mutableStateOf(setOf("demo-1", "demo-3")); private set
-    var savedWorlds by mutableStateOf(setOf("demo-world-1", "demo-world-3")); private set
+    var worldFolders by mutableStateOf(listOf(defaultWorldFolder())); private set
+    private val savedWorlds: Set<String> get() = worldFolders.flatMap { it.worldIds }.toSet()
     var busy by mutableStateOf(false); private set
     var authBusy by mutableStateOf(false); private set
     var error by mutableStateOf<String?>(null); private set
@@ -312,19 +314,35 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
     }
     private fun loadBookmarks() {
         savedFriends = localData.loadSavedFriends(accountId)
-        savedWorlds = localData.loadSavedWorlds(accountId)
+        worldFolders = localData.loadWorldFolders(accountId)
     }
     fun toggleFriend(id: String) {
         savedFriends = if (id in savedFriends) savedFriends - id else savedFriends + id
         localData.saveFriends(accountId, savedFriends)
     }
-    fun toggleWorld(world: World) {
+    fun createWorldFolder(name: String): WorldFavoriteFolder? {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty() || worldFolders.any { it.name.equals(trimmed, ignoreCase = true) }) return null
+        val folder = WorldFavoriteFolder(UUID.randomUUID().toString(), trimmed, emptySet())
+        worldFolders = worldFolders + folder
+        localData.saveWorldFolders(accountId, worldFolders, worldCache.values)
+        return folder
+    }
+
+    fun setWorldFolder(world: World, folderId: String?) {
         val platforms = world.platforms.ifEmpty { worldCache[world.id]?.platforms.orEmpty() }
         worldCache[world.id] = world.copy(platforms = platforms)
-        savedWorlds = if (world.id in savedWorlds) savedWorlds - world.id else savedWorlds + world.id
-        localData.saveWorlds(accountId, savedWorlds, worldCache.values)
+        worldFolders = worldFolders.map { folder ->
+            folder.copy(worldIds = if (folder.id == folderId) folder.worldIds + world.id else folder.worldIds - world.id)
+        }
+        localData.saveWorldFolders(accountId, worldFolders, worldCache.values)
     }
-    fun bookmarkedWorlds() = (worlds + worldCache.values).distinctBy { it.id }.filter { it.id in savedWorlds }
+    fun isWorldSaved(id: String) = worldFolders.any { id in it.worldIds }
+
+    fun bookmarkedWorlds(folderId: String? = null): List<World> {
+        val ids = if (folderId == null) savedWorlds else worldFolders.firstOrNull { it.id == folderId }?.worldIds.orEmpty()
+        return (worlds + worldCache.values).distinctBy { it.id }.filter { it.id in ids }
+    }
     fun setTheme(mode: Int) { themeMode = mode; prefs.edit().putInt("theme", mode).apply() }
     fun setDynamic(value: Boolean) { dynamicColor = value; prefs.edit().putBoolean("dynamic", value).apply() }
     fun dismissError() { error = null }

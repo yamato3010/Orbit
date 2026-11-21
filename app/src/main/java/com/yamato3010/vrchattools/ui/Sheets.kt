@@ -89,7 +89,7 @@ fun FriendSheet(friend: Friend, model: OrbitViewModel, onDismiss: () -> Unit, on
 }
 
 @Composable
-fun WorldSheet(world: World, model: OrbitViewModel, onDismiss: () -> Unit) {
+fun WorldSheet(world: World, model: OrbitViewModel, onDismiss: () -> Unit, onSave: () -> Unit) {
     val context = LocalContext.current
     var linkError by remember { mutableStateOf(false) }
     val platforms by produceState(world.platforms, world, model.ownProfile.id) {
@@ -122,9 +122,9 @@ fun WorldSheet(world: World, model: OrbitViewModel, onDismiss: () -> Unit) {
             Text(world.description.ifBlank { "このワールドの説明はありません。" }, style = MaterialTheme.typography.bodyLarge)
             ExpandableDetails("${model.ownProfile.id}/world/${world.id}", listOf(DetailField("ワールドID", world.id)), model.demo,
                 load = { force -> model.resolveWorldDetails(world, force) })
-            FilledTonalButton(onClick = { model.toggleWorld(world) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                Icon(if (world.id in model.savedWorlds) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, null, Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp)); Text(if (world.id in model.savedWorlds) "保存済み · タップで解除" else "このワールドを保存")
+            FilledTonalButton(onClick = onSave, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                Icon(if (model.isWorldSaved(world.id)) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, null, Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp)); Text(if (model.isWorldSaved(world.id)) "保存先を変更" else "このワールドを保存")
             }
             if (!model.demo) Button(onClick = { linkError = !openLink(context, Uri.parse("https://vrchat.com/home/world/${world.id}")) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                 Text("VRChatでワールドを開く"); Spacer(Modifier.width(8.dp)); Icon(Icons.Outlined.OpenInNew, null, Modifier.size(18.dp))

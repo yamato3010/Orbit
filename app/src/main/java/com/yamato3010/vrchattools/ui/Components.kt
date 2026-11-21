@@ -244,7 +244,7 @@ fun WorldCard(world: World, saved: Boolean, onClick: () -> Unit, onSave: () -> U
         Box {
             WorldArt(world, Modifier.fillMaxWidth().height(132.dp))
             IconButton(onClick = onSave, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(36.dp).background(MaterialTheme.colorScheme.surface.copy(alpha = .9f), CircleShape)) {
-                Icon(if (saved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, if (saved) "保存を解除" else "ワールドを保存", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                Icon(if (saved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, if (saved) "保存先を変更" else "ワールドを保存", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
             }
         }
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {

@@ -61,6 +61,7 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
     var friendId by appState::friendId
     var selectedWorld by appState::selectedWorld
     var selectedInstance by appState::selectedInstance
+    var worldToFile by remember(model.ownProfile.id) { mutableStateOf<World?>(null) }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(model.error) { model.error?.let { snackbar.showSnackbar(it); model.dismissError() } }
     LaunchedEffect(model.socialMessage) { model.socialMessage?.let { snackbar.showSnackbar(it); model.dismissSocialMessage() } }
@@ -148,9 +149,9 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
             navigation.AnimatedContent(modifier = Modifier.widthIn(max = 840.dp).fillMaxSize(),
                 transitionSpec = { (fadeIn() + slideInHorizontally { it / 18 }) togetherWith fadeOut() }) { current ->
                 when (current) {
-                    0 -> HomeScreen(model, onPage = { page = it }, onFriend = { friendId = it.id }, onWorld = { selectedWorld = it }, onInstance = { selectedInstance = it.address.key }, bottomInset = bottomInset)
+                    0 -> HomeScreen(model, onPage = { page = it }, onFriend = { friendId = it.id }, onWorld = { selectedWorld = it }, onInstance = { selectedInstance = it.address.key }, bottomInset = bottomInset, onSaveWorld = { worldToFile = it })
                     1 -> FriendsScreen(model, onFriend = { friendId = it.id }, onInstance = { selectedInstance = it.address.key }, bottomInset = bottomInset)
-                    2 -> WorldsScreen(model, onWorld = { selectedWorld = it }, bottomInset = bottomInset)
+                    2 -> WorldsScreen(model, onWorld = { selectedWorld = it }, bottomInset = bottomInset, onSaveWorld = { worldToFile = it })
                     3 -> ActivityScreen(model, onFriend = { friendId = it }, bottomInset = bottomInset)
                     5 -> NotificationsScreen(model, bottomInset)
                     else -> SettingsScreen(model, appState.settingsScroll, bottomInset)
@@ -161,7 +162,10 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
     model.socialFriends.firstOrNull { it.id == friendId }?.let { friend ->
         FriendSheet(friend, model, onDismiss = { friendId = null }, onWorld = { friendId = null; selectedWorld = it })
     }
-    selectedWorld?.let { world -> WorldSheet(world, model, onDismiss = { selectedWorld = null }) }
+    selectedWorld?.let { world ->
+        WorldSheet(world, model, onDismiss = { selectedWorld = null }, onSave = { worldToFile = world })
+    }
+    worldToFile?.let { world -> WorldFolderPicker(world, model, onDismiss = { worldToFile = null }) }
     groupFriendsByInstance(model.socialFriends).instances.firstOrNull { it.address.key == selectedInstance }?.let { instance ->
         InstanceSheet(instance, model, onDismiss = { selectedInstance = null },
             onFriend = { selectedInstance = null; friendId = it.id },
@@ -172,7 +176,7 @@ fun OrbitApp(model: OrbitViewModel, appState: OrbitAppState) {
 }
 
 @Composable
-private fun HomeScreen(model: OrbitViewModel, onPage: (Int) -> Unit, onFriend: (Friend) -> Unit, onWorld: (World) -> Unit, onInstance: (FriendInstance) -> Unit, bottomInset: Dp) {
+private fun HomeScreen(model: OrbitViewModel, onPage: (Int) -> Unit, onFriend: (Friend) -> Unit, onWorld: (World) -> Unit, onInstance: (FriendInstance) -> Unit, bottomInset: Dp, onSaveWorld: (World) -> Unit) {
     val overview = groupFriendsByInstance(model.socialFriends)
     val online = model.friends.filter { it.status != Presence.Offline }
     RefreshableLazyColumn(
@@ -215,7 +219,7 @@ private fun HomeScreen(model: OrbitViewModel, onPage: (Int) -> Unit, onFriend: (
                 SectionTitle("次は、どこへ？", "ワールド", { onPage(2) })
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(model.worlds.take(6), key = { it.id }) { world ->
-                        WorldCard(world, world.id in model.savedWorlds, { onWorld(world) }, { model.toggleWorld(world) }, Modifier.width(228.dp))
+                        WorldCard(world, model.isWorldSaved(world.id), { onWorld(world) }, { onSaveWorld(world) }, Modifier.width(228.dp))
                     }
                 }
                 if (model.worlds.isEmpty()) Text("ワールドは更新後に表示されます。", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -316,10 +320,16 @@ private fun SearchBox(query: String, onQuery: (String) -> Unit, hint: String, on
 }
 
 @Composable
-private fun FilterChips(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+private fun FilterChips(
+    labels: List<String>,
+    selected: Int,
+    icon: (Int) -> ImageVector? = { null },
+    onSelect: (Int) -> Unit
+) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(labels.size) { index ->
             val isSelected = selected == index
+            val leadingIcon = icon(index) ?: Icons.Rounded.Check.takeIf { isSelected }
             val corner by animateDpAsState(
                 targetValue = if (isSelected) 12.dp else 24.dp,
                 animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
@@ -335,7 +345,7 @@ private fun FilterChips(labels: List<String>, selected: Int, onSelect: (Int) -> 
                     selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
                     selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer
                 ),
-                leadingIcon = if (isSelected) ({ Icon(Icons.Rounded.Check, null, Modifier.size(16.dp)) }) else null
+                leadingIcon = leadingIcon?.let { image -> { Icon(image, null, Modifier.size(16.dp)) } }
             )
         }
     }
@@ -398,9 +408,14 @@ private enum class WorldsTab(val label: String) {
 }
 
 @Composable
-private fun WorldsScreen(model: OrbitViewModel, onWorld: (World) -> Unit, bottomInset: Dp) {
+private fun WorldsScreen(model: OrbitViewModel, onWorld: (World) -> Unit, bottomInset: Dp, onSaveWorld: (World) -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
     var tab by rememberSaveable { mutableStateOf(WorldsTab.Discover) }
+    var selectedFolderId by rememberSaveable(model.ownProfile.id) { mutableStateOf<String?>(null) }
+    var creatingFolder by remember(model.ownProfile.id) { mutableStateOf(false) }
+    val folders = model.worldFolders
+    val folderIndex = folders.indexOfFirst { it.id == selectedFolderId }
+    val activeFolder = folders.getOrNull(folderIndex)
     val useRemoteSearch = tab.usesRemoteSearch(model.demo)
 
     fun searchRemote() {
@@ -411,7 +426,8 @@ private fun WorldsScreen(model: OrbitViewModel, onWorld: (World) -> Unit, bottom
         delay(550)
         searchRemote()
     }
-    val source = if (tab == WorldsTab.Saved) model.bookmarkedWorlds() else model.worlds
+    val source = if (tab == WorldsTab.Saved) model.bookmarkedWorlds(activeFolder?.id) else model.worlds
+    val loading = useRemoteSearch && model.worldLoading
     val worlds = if (useRemoteSearch) source else source.filter {
         it.name.contains(query, ignoreCase = true) || it.author.contains(query, ignoreCase = true)
     }
@@ -424,15 +440,42 @@ private fun WorldsScreen(model: OrbitViewModel, onWorld: (World) -> Unit, bottom
                 searchRemote()
             }
         }
-        item { Text(if (model.demo) "探索のヒント · 架空のサンプルワールド" else if (tab == WorldsTab.Saved) "端末に保存したワールド" else "VRChatのワールド", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (tab == WorldsTab.Saved) item {
+            Column {
+                TextButton(onClick = { creatingFolder = true }) {
+                    Icon(Icons.Outlined.CreateNewFolder, null, Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("フォルダを作成")
+                }
+                FilterChips(
+                    labels = listOf("すべて") + folders.map { it.name },
+                    selected = folderIndex + 1,
+                    icon = { index -> Icons.Outlined.Folder.takeIf { index > 0 } }
+                ) { index ->
+                    selectedFolderId = folders.getOrNull(index - 1)?.id
+                }
+            }
+        }
+        item { Text(if (tab == WorldsTab.Saved) "端末に保存したワールド" else if (model.demo) "探索のヒント · 架空のサンプルワールド" else "VRChatのワールド", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         items(worlds.chunked(2)) { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                pair.forEach { world -> WorldCard(world, world.id in model.savedWorlds, { onWorld(world) }, { model.toggleWorld(world) }, Modifier.weight(1f)) }
+                pair.forEach { world -> WorldCard(world, model.isWorldSaved(world.id), { onWorld(world) }, { onSaveWorld(world) }, Modifier.weight(1f)) }
                 if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
-        if (model.worldLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-        if (worlds.isEmpty() && !model.worldLoading) item { EmptyState("ワールドが見つかりません", if (tab == WorldsTab.Saved) "気になるワールドの保存ボタンを押してみましょう。" else "キーワードを変えて探してみましょう。", Icons.Outlined.Public) }
+        if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        if (worlds.isEmpty() && !loading) item { EmptyState("ワールドが見つかりません", when {
+            query.isNotBlank() || tab == WorldsTab.Discover -> "キーワードを変えて探してみましょう。"
+            activeFolder != null -> "保存ボタンからこのフォルダを選ぶと、ここに表示されます。"
+            else -> "気になるワールドの保存ボタンを押してみましょう。"
+        }, Icons.Outlined.Public) }
+    }
+    if (creatingFolder) {
+        CreateWorldFolderDialog(model, onDismiss = { creatingFolder = false }) { folder ->
+            creatingFolder = false
+            selectedFolderId = folder.id
+            query = ""
+        }
     }
 }
 

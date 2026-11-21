@@ -33,7 +33,19 @@ internal class OrbitPreferences(private val prefs: SharedPreferences) {
     fun loadSavedFriends(accountId: String): Set<String> =
         prefs.getStringSet("friends_$accountId", if (accountId == "demo") setOf("demo-1", "demo-3") else emptySet()).orEmpty().toSet()
 
-    fun loadSavedWorlds(accountId: String): Set<String> =
+    fun loadWorldFolders(accountId: String): List<WorldFavoriteFolder> = runCatching {
+        val stored = prefs.getString("world_folders_$accountId", null)
+            ?: return listOf(defaultWorldFolder(loadSavedWorlds(accountId)))
+        val array = JSONArray(stored)
+        List(array.length()) { index ->
+            val folder = array.getJSONObject(index)
+            val ids = folder.getJSONArray("worldIds")
+            WorldFavoriteFolder(folder.getString("id"), folder.getString("name"),
+                (0 until ids.length()).map { ids.getString(it) }.toSet())
+        }.ifEmpty { listOf(defaultWorldFolder(loadSavedWorlds(accountId))) }
+    }.getOrElse { listOf(defaultWorldFolder(loadSavedWorlds(accountId))) }
+
+    private fun loadSavedWorlds(accountId: String): Set<String> =
         prefs.getStringSet("worlds_$accountId", if (accountId == "demo") setOf("demo-world-1", "demo-world-3") else emptySet()).orEmpty().toSet()
 
     fun saveFriends(accountId: String, ids: Set<String>) {
@@ -50,7 +62,13 @@ internal class OrbitPreferences(private val prefs: SharedPreferences) {
         }
     }
 
-    fun saveWorlds(accountId: String, ids: Set<String>, cachedWorlds: Collection<World>) {
+    fun saveWorldFolders(accountId: String, folders: List<WorldFavoriteFolder>, cachedWorlds: Collection<World>) {
+        val storedFolders = JSONArray(folders.map { folder ->
+            JSONObject()
+                .put("id", folder.id)
+                .put("name", folder.name)
+                .put("worldIds", JSONArray(folder.worldIds.toList()))
+        })
         val array = JSONArray(cachedWorlds.map { world ->
             JSONObject()
                 .put("id", world.id)
@@ -64,7 +82,8 @@ internal class OrbitPreferences(private val prefs: SharedPreferences) {
                 .put("unityPackages", JSONArray(world.platforms.map { JSONObject().put("platform", it.apiName) }))
         })
         prefs.edit()
-            .putStringSet("worlds_$accountId", ids)
+            .putString("world_folders_$accountId", storedFolders.toString())
+            .putStringSet("worlds_$accountId", folders.flatMap { it.worldIds }.toSet())
             .putString("world_cache_$accountId", array.toString())
             .apply()
     }
