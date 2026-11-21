@@ -576,7 +576,7 @@ private fun SettingsScreen(model: OrbitViewModel, scrollState: androidx.compose.
             Text("お気に入りはOrbit専用です。VRChat側のお気に入りとは同期されません。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Text("Orbit  /  0.1.0\nVRChatのための、小さなコンパニオン。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        AppUpdateSettings()
         Text("VRChatとは独立した非公式アプリです。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     if (confirmLogout) AlertDialog(onDismissRequest = { confirmLogout = false }, title = { Text("ログアウトしますか？") }, text = { Text("認証情報を端末から削除し、デモモードに戻ります。保存したお気に入りとログはこの端末に残ります。") }, confirmButton = { TextButton(onClick = { confirmLogout = false; model.logout() }) { Text("ログアウト") } }, dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("キャンセル") } })

@@ -1,0 +1,59 @@
+name: Release Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          version_name=$(sed -n 's/^versionName=//p' release.properties)
+          version_code=$(sed -n 's/^versionCode=//p' release.properties)
+          if ! [[ "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$GITHUB_REF_NAME" == "v$version_name" ]]; then
+            echo "The release tag must match v<versionName> in release.properties." >&2
+            exit 1
+          fi
+          if ! [[ "$version_code" =~ ^[1-9][0-9]{0,9}$ ]] || (( version_code > 2100000000 )); then
+            echo "versionCode must be a positive Android version code." >&2
+            exit 1
+          fi
+          echo "APK_NAME=Orbit-$version_code.apk" >> "$GITHUB_ENV"
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-37.0"
+      - name: Test and build signed APK
+        env:
+          ORBIT_KEYSTORE_BASE64: ${{ secrets.ORBIT_KEYSTORE_BASE64 }}
+          ORBIT_KEYSTORE_PASSWORD: ${{ secrets.ORBIT_KEYSTORE_PASSWORD }}
+          ORBIT_KEY_ALIAS: ${{ secrets.ORBIT_KEY_ALIAS }}
+          ORBIT_KEY_PASSWORD: ${{ secrets.ORBIT_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${ORBIT_KEYSTORE_BASE64:?}" "${ORBIT_KEYSTORE_PASSWORD:?}" "${ORBIT_KEY_ALIAS:?}" "${ORBIT_KEY_PASSWORD:?}"
+          export ORBIT_KEYSTORE_PATH="$(mktemp)"
+          trap 'rm -f "$ORBIT_KEYSTORE_PATH"' EXIT
+          printf '%s' "$ORBIT_KEYSTORE_BASE64" | base64 --decode > "$ORBIT_KEYSTORE_PATH"
+          ./gradlew --no-configuration-cache :app:testDebugUnitTest :app:assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "$APK_NAME"
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "$APK_NAME" --verify-tag --generate-notes --latest

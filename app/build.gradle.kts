@@ -1,7 +1,18 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+val releaseVersion = Properties().apply {
+    rootProject.file("release.properties").inputStream().use { load(it) }
+}
+val releaseRepository = providers.environmentVariable("GITHUB_REPOSITORY")
+    .orElse("yamato3010/Orbit").get()
+require(releaseRepository.matches(Regex("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")))
+
+val releaseKeystore = providers.environmentVariable("ORBIT_KEYSTORE_PATH").orNull
 
 android {
     namespace = "com.yamato3010.vrchattools"
@@ -13,14 +24,27 @@ android {
         applicationId = "com.yamato3010.vrchattools"
         minSdk = 24
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = releaseVersion.getProperty("versionCode").toInt()
+        versionName = releaseVersion.getProperty("versionName")
+        buildConfigField("String", "RELEASE_REPOSITORY", "\"$releaseRepository\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("githubRelease") {
+                storeFile = file(releaseKeystore)
+                storePassword = providers.environmentVariable("ORBIT_KEYSTORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("ORBIT_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("ORBIT_KEY_PASSWORD").get()
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("githubRelease")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
@@ -33,6 +57,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
