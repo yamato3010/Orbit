@@ -273,18 +273,41 @@ private fun FriendsScreen(model: OrbitViewModel, onFriend: (Friend) -> Unit, onI
     }
 }
 
+private enum class WorldsTab(val label: String) {
+    Discover("見つける"),
+    Saved("保存したワールド");
+
+    fun usesRemoteSearch(demo: Boolean) = this == Discover && !demo
+}
+
 @Composable
 private fun WorldsScreen(model: OrbitViewModel, onWorld: (World) -> Unit, bottomInset: Dp) {
     var query by rememberSaveable { mutableStateOf("") }
-    var filter by rememberSaveable { mutableIntStateOf(0) }
-    LaunchedEffect(query, model.demo) { delay(550); if (!model.demo && filter == 0) model.searchWorlds(query) }
-    val source = if (filter == 1) model.bookmarkedWorlds() else model.worlds
-    val worlds = source.filter { (!model.demo && filter == 0) || it.name.contains(query, true) || it.author.contains(query, true) }
+    var tab by rememberSaveable { mutableStateOf(WorldsTab.Discover) }
+    val useRemoteSearch = tab.usesRemoteSearch(model.demo)
+
+    fun searchRemote() {
+        if (tab.usesRemoteSearch(model.demo)) model.searchWorlds(query)
+    }
+
+    LaunchedEffect(query, model.demo) {
+        delay(550)
+        searchRemote()
+    }
+    val source = if (tab == WorldsTab.Saved) model.bookmarkedWorlds() else model.worlds
+    val worlds = if (useRemoteSearch) source else source.filter {
+        it.name.contains(query, ignoreCase = true) || it.author.contains(query, ignoreCase = true)
+    }
     LazyColumn(contentPadding = PaddingValues(24.dp, 12.dp, 24.dp, 24.dp + bottomInset), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { PageHeading("A WORLD OF POSSIBILITIES", "ワールド", "お気に入りの場所が、きっと見つかる。") }
-        item { SearchBox(query, { query = it }, "ワールドを探す", { model.searchWorlds(query) }) }
-        item { FilterChips(listOf("見つける", "保存したワールド"), filter) { filter = it; if (it == 0 && !model.demo) model.searchWorlds(query) } }
-        item { Text(if (model.demo) "探索のヒント · 架空のサンプルワールド" else if (filter == 1) "端末に保存したワールド" else "VRChatのワールド", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { SearchBox(query, { query = it }, "ワールドを探す", ::searchRemote) }
+        item {
+            FilterChips(WorldsTab.entries.map { it.label }, tab.ordinal) { index ->
+                tab = WorldsTab.entries[index]
+                searchRemote()
+            }
+        }
+        item { Text(if (model.demo) "探索のヒント · 架空のサンプルワールド" else if (tab == WorldsTab.Saved) "端末に保存したワールド" else "VRChatのワールド", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         items(worlds.chunked(2)) { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 pair.forEach { world -> WorldCard(world, world.id in model.savedWorlds, { onWorld(world) }, { model.toggleWorld(world) }, Modifier.weight(1f)) }
@@ -292,7 +315,7 @@ private fun WorldsScreen(model: OrbitViewModel, onWorld: (World) -> Unit, bottom
             }
         }
         if (model.worldLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-        if (worlds.isEmpty() && !model.worldLoading) item { EmptyState("ワールドが見つかりません", if (filter == 1) "気になるワールドの保存ボタンを押してみましょう。" else "キーワードを変えて探してみましょう。", Icons.Outlined.Public) }
+        if (worlds.isEmpty() && !model.worldLoading) item { EmptyState("ワールドが見つかりません", if (tab == WorldsTab.Saved) "気になるワールドの保存ボタンを押してみましょう。" else "キーワードを変えて探してみましょう。", Icons.Outlined.Public) }
     }
 }
 
