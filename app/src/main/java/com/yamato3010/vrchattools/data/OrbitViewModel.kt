@@ -311,13 +311,15 @@ class OrbitViewModel(application: Application) : AndroidViewModel(application) {
         prefs.edit().putStringSet("friends_$accountId", savedFriends).apply()
     }
     fun toggleWorld(world: World) {
-        worldCache[world.id] = world
+        val platforms = world.platforms.ifEmpty { worldCache[world.id]?.platforms.orEmpty() }
+        worldCache[world.id] = world.copy(platforms = platforms)
         savedWorlds = if (world.id in savedWorlds) savedWorlds - world.id else savedWorlds + world.id
         prefs.edit().putStringSet("worlds_$accountId", savedWorlds).apply()
         prefs.edit().putString("world_cache_$accountId", JSONArray(worldCache.values.map { w ->
             JSONObject().put("id", w.id).put("name", w.name).put("authorName", w.author).put("occupants", w.occupants)
                 .put("capacity", w.capacity).put("thumbnailImageUrl", w.image)
                 .put("imageUrl", w.imageFallbacks.firstOrNull().orEmpty()).put("description", w.description)
+                .put("unityPackages", JSONArray(w.platforms.map { JSONObject().put("platform", it.apiName) }))
         }).toString()).apply()
     }
     fun bookmarkedWorlds() = (worlds + worldCache.values).distinctBy { it.id }.filter { it.id in savedWorlds }

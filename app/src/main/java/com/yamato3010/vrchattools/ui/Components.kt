@@ -160,6 +160,49 @@ private fun DemoWorldArt(world: World, modifier: Modifier) {
 }
 
 @Composable
+internal fun WorldPlatformLine(platforms: List<WorldPlatform>) {
+    Text(
+        if (platforms.isEmpty()) "対応プラットフォーム不明" else "対応プラットフォーム　" + platforms.joinToString(" / ") { it.label },
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun WorldPlatformBadges(platforms: List<WorldPlatform>) {
+    if (platforms.isEmpty()) {
+        WorldPlatformLine(platforms)
+        return
+    }
+
+    val colors = MaterialTheme.colorScheme
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("対応プラットフォーム", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            platforms.forEach { platform ->
+                val (background, foreground) = when (platform) {
+                    WorldPlatform.Windows -> colors.primaryContainer to colors.onPrimaryContainer
+                    WorldPlatform.Android -> colors.secondaryContainer to colors.onSecondaryContainer
+                    WorldPlatform.Ios -> colors.tertiaryContainer to colors.onTertiaryContainer
+                }
+                Surface(shape = CircleShape, color = background, contentColor = foreground) {
+                    Text(
+                        text = platform.label,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun WorldCard(world: World, saved: Boolean, onClick: () -> Unit, onSave: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.clip(RoundedCornerShape(26.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable(onClick = onClick)) {
         Box {
@@ -175,6 +218,7 @@ fun WorldCard(world: World, saved: Boolean, onClick: () -> Unit, onSave: () -> U
                 Icon(Icons.Outlined.People, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(" ${world.occupants}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            WorldPlatformLine(world.platforms)
         }
     }
 }

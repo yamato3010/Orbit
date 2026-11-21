@@ -2,6 +2,7 @@ package com.yamato3010.vrchattools
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yamato3010.vrchattools.data.TrustRank
+import com.yamato3010.vrchattools.data.WorldPlatform
 import com.yamato3010.vrchattools.data.toFriend
 import com.yamato3010.vrchattools.data.toWorld
 import org.json.JSONObject
@@ -28,6 +29,24 @@ class FriendParsingTest {
         assertEquals(listOf("https://api.vrchat.cloud/world-thumb", "https://api.vrchat.cloud/world-image"), world.toWorld().imageUrls)
         world.put("thumbnailImageUrl", "http://invalid/image")
         assertEquals("https://api.vrchat.cloud/world-image", world.toWorld().image)
+    }
+
+    @Test fun parsesWorldBuildPlatformsFromSearchAndDetailResponses() {
+        val world = JSONObject()
+        assertEquals(emptyList<WorldPlatform>(), world.toWorld().platforms)
+
+        world.put("unityPackages", org.json.JSONArray("""
+            [
+                {"platform":"ios","assetUrl":"https://example.com/ios"},
+                {"platform":"standalonewindows"},
+                {"platform":"android"},
+                {"platform":"android"},
+                {"platform":"unknownplatform"},
+                {},
+                null
+            ]
+        """.trimIndent()))
+        assertEquals(WorldPlatform.entries.toList(), world.toWorld().platforms)
     }
 
     @Test fun parsesRankTagsFromApiResponseAndDistinguishesMissingTags() {

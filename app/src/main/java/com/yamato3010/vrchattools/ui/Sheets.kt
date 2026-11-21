@@ -92,6 +92,16 @@ fun FriendSheet(friend: Friend, model: OrbitViewModel, onDismiss: () -> Unit, on
 fun WorldSheet(world: World, model: OrbitViewModel, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var linkError by remember { mutableStateOf(false) }
+    val platforms by produceState(world.platforms, world, model.ownProfile.id) {
+        value = world.platforms
+        if (value.isEmpty() && !model.demo) {
+            try {
+                value = model.resolveWorld(world.id)?.platforms.orEmpty()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+            }
+        }
+    }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, bottom = 36.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Surface(shape = RoundedCornerShape(28.dp)) { WorldArt(world, Modifier.fillMaxWidth().height(210.dp)) }
@@ -102,6 +112,12 @@ fun WorldSheet(world: World, model: OrbitViewModel, onDismiss: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SuggestionChip(onClick = {}, label = { Text("${world.occupants} 人が滞在中") }, icon = { Icon(Icons.Outlined.People, null, Modifier.size(17.dp)) })
                 SuggestionChip(onClick = {}, label = { Text("定員 ${world.capacity} 人") })
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                WorldPlatformBadges(platforms)
+                if (WorldPlatform.Android in platforms && WorldPlatform.Ios !in platforms) {
+                    Text("iOSではAndroid版を読み込める場合があります。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             Text(world.description.ifBlank { "このワールドの説明はありません。" }, style = MaterialTheme.typography.bodyLarge)
             ExpandableDetails("${model.ownProfile.id}/world/${world.id}", listOf(DetailField("ワールドID", world.id)), model.demo,

@@ -88,6 +88,7 @@ private fun InstanceImage(world: World?, modifier: Modifier = Modifier) {
 @Composable
 private fun InstanceMetadata(group: FriendInstance, data: InstanceData) {
     val details = data.details
+    data.world?.let { WorldPlatformBadges(it.platforms) }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = CircleShape) {
             Text(details?.accessLabel ?: group.address.accessLabel, Modifier.padding(horizontal = 10.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
@@ -165,7 +166,8 @@ fun InstanceSheet(group: FriendInstance, model: OrbitViewModel, onDismiss: () ->
             item { Box(Modifier.clip(RoundedCornerShape(24.dp))) { InstanceImage(data.world, Modifier.fillMaxWidth().height(180.dp)) } }
             item {
                 Text(data.world?.name ?: group.friends.firstOrNull()?.worldName?.takeIf(String::isNotBlank) ?: "ワールド", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(12.dp)); InstanceMetadata(group, data)
+                Spacer(Modifier.height(12.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { InstanceMetadata(group, data) }
             }
             if (data.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             if (data.errors.isNotEmpty() && !data.loading) item {

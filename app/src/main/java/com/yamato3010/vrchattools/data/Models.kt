@@ -28,9 +28,15 @@ data class Friend(val id: String, val name: String, val status: Presence, val lo
         else -> "現在地を確認できません"
     }
 }
+enum class WorldPlatform(val apiName: String, val label: String) {
+    Windows("standalonewindows", "Windows"),
+    Android("android", "Android"),
+    Ios("ios", "iOS")
+}
+
 data class World(val id: String, val name: String, val author: String, val occupants: Int,
     val capacity: Int = 32, val image: String = "", val description: String = "", val palette: Int = 0,
-    val imageFallbacks: List<String> = emptyList()) {
+    val imageFallbacks: List<String> = emptyList(), val platforms: List<WorldPlatform> = emptyList()) {
     val imageUrls: List<String> get() = imageUrls(image, *imageFallbacks.toTypedArray())
 }
 data class ActivityEntry(val id: String, val name: String, val text: String, val time: Long,
@@ -60,9 +66,14 @@ internal fun JSONObject.toFriend(limited: Boolean = false): Friend {
 }
 internal fun JSONObject.toWorld(): World {
     val images = imageUrls(optString("thumbnailImageUrl"), optString("imageUrl"))
+    val packages = optJSONArray("unityPackages")
+    val platformNames = (0 until (packages?.length() ?: 0)).mapNotNull { index ->
+        packages?.optJSONObject(index)?.optString("platform")?.trim()?.lowercase()
+    }.toSet()
+    val platforms = WorldPlatform.entries.filter { it.apiName in platformNames }
     return World(optString("id"), optString("name"), optString("authorName"),
         optInt("occupants"), optInt("capacity", 32), images.firstOrNull().orEmpty(),
-        optString("description"), imageFallbacks = images.drop(1))
+        optString("description"), imageFallbacks = images.drop(1), platforms = platforms)
 }
 
 internal val profileImageFields = listOf("userIcon", "iconUrl", "profilePicOverride", "currentAvatarThumbnailImageUrl", "currentAvatarImageUrl")

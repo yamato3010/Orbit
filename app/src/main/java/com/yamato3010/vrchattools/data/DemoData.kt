@@ -2,11 +2,11 @@ package com.yamato3010.vrchattools.data
 
 object DemoData {
     val worlds = listOf(
-        World("demo-world-1", "雲の上の喫茶店", "sorairo", 24, 40, description = "雲の海に浮かぶ、小さな喫茶店。あたたかいコーヒーと、ゆっくり流れる時間を。", palette = 0),
-        World("demo-world-2", "Midnight Rooftop", "tsuki", 18, 32, description = "街の灯りを見下ろしながら、夜更かしを。静かな音楽が流れる屋上ラウンジ。", palette = 1),
-        World("demo-world-3", "こもれびの庭", "komorebi", 36, 60, description = "木漏れ日が揺れる、緑いっぱいの庭。お散歩にも、友達とのおしゃべりにも。", palette = 2),
-        World("demo-world-4", "Sakura no Oto", "haru", 12, 32, description = "春の音を聴きにいこう。満開の桜と、水辺の小さな駅。", palette = 3),
-        World("demo-world-5", "Blue Hour", "aoi", 8, 24, description = "夜が始まる、その少し前。波の音と青い空に包まれる海辺。", palette = 4)
+        World("demo-world-1", "雲の上の喫茶店", "sorairo", 24, 40, description = "雲の海に浮かぶ、小さな喫茶店。あたたかいコーヒーと、ゆっくり流れる時間を。", palette = 0, platforms = WorldPlatform.entries),
+        World("demo-world-2", "Midnight Rooftop", "tsuki", 18, 32, description = "街の灯りを見下ろしながら、夜更かしを。静かな音楽が流れる屋上ラウンジ。", palette = 1, platforms = listOf(WorldPlatform.Windows)),
+        World("demo-world-3", "こもれびの庭", "komorebi", 36, 60, description = "木漏れ日が揺れる、緑いっぱいの庭。お散歩にも、友達とのおしゃべりにも。", palette = 2, platforms = listOf(WorldPlatform.Windows, WorldPlatform.Android)),
+        World("demo-world-4", "Sakura no Oto", "haru", 12, 32, description = "春の音を聴きにいこう。満開の桜と、水辺の小さな駅。", palette = 3, platforms = WorldPlatform.entries),
+        World("demo-world-5", "Blue Hour", "aoi", 8, 24, description = "夜が始まる、その少し前。波の音と青い空に包まれる海辺。", palette = 4, platforms = listOf(WorldPlatform.Windows))
     )
     val friends = listOf(
         Friend("demo-1", "こはる", Presence.JoinMe, "demo-world-1:123", "雲の上の喫茶店", bio = "まったりお話ししよ〜", platform = "PC", trustRank = TrustRank.Trusted, pronouns = "she/her"),

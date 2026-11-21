@@ -43,6 +43,10 @@ class OrbitFlowTest {
         compose.onNode(hasText("こはる") and !hasSetTextAction()).performClick()
         compose.onNodeWithText("まったりお話ししよ〜").assertIsDisplayed()
         compose.onNodeWithContentDescription("ワールド詳細").performClick()
+        compose.onNodeWithText("対応プラットフォーム").assertIsDisplayed()
+        listOf("Windows", "Android", "iOS").forEach { platform ->
+            compose.onNodeWithText(platform).assertIsDisplayed()
+        }
         compose.onNodeWithText("デモ用の架空のワールドとイラストです。").assertExists()
     }
 }
